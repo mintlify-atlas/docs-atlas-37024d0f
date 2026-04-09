@@ -1,0 +1,174 @@
+---
+title: "Testing"
+description: "How to run C++ unit tests, render tests, expression tests, and platform-specific test suites for MapLibre Native."
+---
+
+MapLibre Native has several test suites covering different layers of the stack: C++ unit tests, image-diff render tests, expression correctness tests, and platform-specific instrumentation and UI tests.
+
+## C++ unit tests
+
+The C++ unit tests are compiled into the `mbgl-test-runner` executable. After building with CMake, run them from the build directory:
+
+```bash
+./build/mbgl-test-runner
+```
+
+Use `--gtest_filter` to run a subset of tests (GoogleTest syntax):
+
+```bash
+./build/mbgl-test-runner --gtest_filter="TileTest.*"
+```
+
+See the [GoogleTest documentation](https://google.github.io/googletest/advanced.html#running-a-subset-of-the-tests) for full filter syntax.
+
+## Render tests
+
+Render tests verify rendering correctness by comparing a rendered map image against a stored expected image. A diff image and an HTML report are produced on each run.
+
+The render test runner executable is `mbgl-render-test-runner`. Tests are organized under `metrics/integration/render-tests/`, grouped by style specification property.
+
+### Running render tests
+
+Run the full integration test suite on Linux:
+
+```bash
+./build/mbgl-render-test-runner --manifestPath metrics/linux-clang8-release-style.json
+```
+
+Run a filtered subset using a regular expression:
+
+```bash
+./build/mbgl-render-test-runner \
+  --manifestPath metrics/linux-clang8-release-style.json \
+  -f 'circle-radius/.*'
+```
+
+Results are written to an HTML file (e.g. `metrics/linux-clang8-release-style.html`) that shows pass/fail status and image diffs for each test.
+
+### Render test runner options
+
+| Flag | Description |
+|---|---|
+| `-p`, `--manifestPath` | Path to the test manifest JSON file (required) |
+| `-f`, `--filter` | Regex to select which tests to run |
+| `-u`, `--update` | Update mode: `default`, `platform`, `metrics`, or `rebaseline` |
+| `-r`, `--recycle-map` | Reuse the map object between tests |
+| `-s`, `--shuffle` | Randomize test order |
+| `-o`, `--online` | Allow network requests during tests |
+
+### Adding a new render test
+
+<Steps>
+  <Step title="Create the test directory">
+    ```bash
+    mkdir -p metrics/integration/render-tests/<property-name>/<test-name>
+    ```
+  </Step>
+  <Step title="Add a style.json">
+    Create a `style.json` file describing the map to render. Copy an existing one from `metrics/integration/render-tests/` as a starting point.
+  </Step>
+  <Step title="Generate the expected image">
+    ```bash
+    ./build/mbgl-render-test-runner \
+      --update default \
+      --manifestPath metrics/linux-clang8-release-style.json \
+      -f '<property-name>/<test-name>'
+    ```
+  </Step>
+  <Step title="Verify the output">
+    Inspect the generated `expected.png` and confirm it looks correct.
+  </Step>
+  <Step title="Commit">
+    Commit both `style.json` and `expected.png`.
+  </Step>
+</Steps>
+
+### Manifest files and ignores
+
+Manifests are JSON files in the `metrics/` directory passed via `--manifestPath`. They define test paths, expectation directories, and ignore lists. Ignore files live under `metrics/ignores/` and let you skip tests with known platform-specific differences:
+
+```json
+{
+  "expression-tests/collator/accent-equals-de": "Locale-specific behavior changes based on platform."
+}
+```
+
+## Expression tests
+
+Expression tests verify the behavior of [MapLibre Style Spec expressions](https://maplibre.org/maplibre-style-spec/expressions/). They live under `metrics/integration/expression-tests/` and are run via the same `mbgl-render-test-runner` infrastructure using an appropriate manifest.
+
+```bash
+./build/mbgl-render-test-runner \
+  --manifestPath metrics/linux-clang8-release-style.json \
+  -f 'expression-tests/.*'
+```
+
+## Android tests
+
+### Render tests
+
+Run the `androidRenderTest.app` module configuration from Android Studio. To filter which tests run, edit the arguments in `platform/android/src/test/render_test_runner.cpp`:
+
+```cpp
+std::vector<std::string> arguments = {..., "-f", "background-color/literal"};
+```
+
+After the app completes, use the Device Explorer to navigate to `/data/data/org.maplibre.render_test_runner/files`. Open `android-render-test-runner-style.html` in a browser to view results.
+
+You can also pull results from the command line with `adb`:
+
+```bash
+filename=android-render-test-runner-style.html
+adb shell "run-as org.maplibre.render_test_runner cat files/metrics/$filename" > $filename
+open $filename
+```
+
+For Vulkan builds, use `android-vulkan-render-test-runner-style.html` as the filename.
+
+To add an alternate expected image from a device:
+
+```bash
+render_test_name=tile-lod/zoom-shift
+adb exec-out run-as org.maplibre.render_test_runner \
+  cat files/metrics/integration/render-tests/$render_test_name/actual.png \
+  > metrics/integration/render-tests/$render_test_name/expected-android.png
+```
+
+### Instrumentation tests
+
+Run the **Instrumentation Tests** run configuration in Android Studio. Keep the device screen unlocked for the duration of the run.
+
+### C++ unit tests on Android
+
+A separate Gradle project at `test/android` runs the C++ unit tests on an Android device or simulator. Open this project in Android Studio and run it directly.
+
+To filter tests, modify the `--gtest_filter` flag in `platform/android/src/test/test_runner.cpp`.
+
+<Note>
+Instrumentation tests and C++ unit tests also run on AWS Device Farm as part of CI. Results are available at the MapLibre Device Farm project (read-only credentials: alias `maplibre`, username `maplibre`, password `maplibre`).
+</Note>
+
+## iOS tests
+
+### Unit tests
+
+Run XCTest-based unit tests via the `ios_test` target in Xcode, or with Bazel:
+
+```bash
+bazel test //platform/ios/test:ios_test --test_output=errors --//:renderer=metal
+```
+
+### Render tests
+
+Run the `RenderTest` target from Xcode. When running in a simulator, locate the app's data container:
+
+```bash
+# Find the DataContainer of the app with *.maplibre.RenderTestApp bundle ID
+xcrun simctl listapps booted
+```
+
+Use the reported path to inspect test results and copy generated `expected.png` files back into the source tree when adding new tests.
+
+### C++ unit tests on iOS
+
+Run the `CppUnitTests` target in Xcode to execute the C++ unit tests on an iOS device or simulator.

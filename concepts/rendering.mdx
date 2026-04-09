@@ -1,0 +1,148 @@
+---
+title: "Rendering"
+description: "The MapLibre Native rendering pipeline"
+---
+
+MapLibre Native renders maps by translating a style document and vector tile data into GPU draw calls. The pipeline runs across multiple threads and is designed to keep the render loop smooth even when new tiles are loading or the style changes.
+
+## Rendering pipeline
+
+The pipeline flows from style definition through tile loading and layout to final GPU output:
+
+```
+Style document
+     │
+     ▼
+Sources & layers (mbgl::style::Style)
+     │
+     ▼
+Tile requests → FileSource (I/O thread)
+     │
+     ▼
+TileWorker × 4 (worker threads)
+  • Parse vector tile protobuf
+  • Run layout (geometry, labels, symbols)
+  • Build GPU vertex buffers
+     │
+     ▼
+Renderer (main or dedicated render thread)
+  • Style diffing — compute what changed
+  • Issue draw calls per layer, in order
+     │
+     ▼
+GPU backend (OpenGL ES / Metal / Vulkan / WebGPU)
+```
+
+Each frame, the `Renderer` compares an immutable snapshot of the current style state against the previous snapshot (style diffing) and updates only the render objects that changed. This avoids redundant work and allows seamless style swaps.
+
+## Renderer backends
+
+MapLibre Native supports multiple GPU APIs through a modularized backend interface. You select a backend at build time for each platform.
+
+<CardGroup cols={2}>
+  <Card title="OpenGL ES" icon="display">
+    The original and most widely supported backend. Used on Linux, Windows, Node.js (headless), Qt, and Android (legacy `-opengl` package).
+  </Card>
+  <Card title="Metal" icon="apple">
+    Apple's modern GPU API. The default backend for iOS and macOS. Replaced OpenGL ES on Apple platforms after OpenGL was deprecated.
+  </Card>
+  <Card title="Vulkan" icon="android">
+    Low-overhead GPU API. The default backend for Android as of 2023. Provides better CPU performance on modern devices.
+  </Card>
+  <Card title="WebGPU" icon="globe">
+    Emerging cross-platform GPU standard. Experimental support added in 2023, targeting future portability across web and native runtimes.
+  </Card>
+</CardGroup>
+
+The backend abstraction lives in `include/mbgl/gfx/` and `src/mbgl/gfx/`. Platform-specific implementations are in `include/mbgl/gl/`, `include/mbgl/mtl/`, `include/mbgl/vulkan/`, and `include/mbgl/webgpu/`.
+
+## Glyph rendering
+
+Text labels use signed distance field (SDF) rendering. Rather than rasterizing glyphs at a fixed size, MapLibre Native stores each glyph as a distance field — a texture where each pixel encodes the distance to the nearest outline edge.
+
+- Pixels **inside** the glyph outline: values `192–255`
+- Pixels **outside** the glyph outline: values `0–191`
+
+All glyphs for a style are packed into a shared **texture atlas** (a protobuf container of SDF bitmaps, one per glyph at font size 24). The GPU shader reconstructs the glyph at any size and rotation by thresholding the distance field at render time. This enables:
+
+- Smooth scaling without re-rasterization
+- Halo and glow effects computed in the shader
+- Rotation of labels along roads or at any angle with no visible pixelation
+
+Glyph data is fetched by the FileSource from the URL template specified in the style's `glyphs` field, chunked by font stack and Unicode range.
+
+## Platform rendering threads
+
+Each platform has its own threading arrangement for the render loop:
+
+| Platform | Render thread |
+|---|---|
+| iOS | Main (UI) thread via Grand Central Dispatch |
+| Android | Dedicated GL/Vulkan thread (`GLSurfaceView` with `GLThread`) |
+| Node.js | Headless offscreen context, caller's thread |
+| Linux/Qt | Main thread or dedicated thread depending on integration |
+
+On Android, user interaction events are batched on the UI thread and sent to the render thread for processing. On iOS, the render loop runs on the main thread directly, which is why blocking the main thread on iOS causes visible frame drops.
+
+<Note>
+Platform SDKs are free to use their own threading primitives. The C++ core is agnostic about where platform-level tasks (HTTP, timers, UI callbacks) are dispatched — each platform provides its own implementation of the concurrency hooks.
+</Note>
+
+## Tile level-of-detail controls
+
+When the camera is pitched, many tiles at the far edge of the viewport contribute little visible detail but still consume GPU and network resources. MapLibre Native provides LOD controls on `mbgl::Map` to reduce the number of tiles requested at distant zoom levels.
+
+### `setPrefetchZoomDelta`
+
+```cpp
+void setPrefetchZoomDelta(uint8_t delta); // default: 4
+```
+
+When loading a map, the renderer first requests tiles at `zoom - delta` to display a full (lower-resolution) map as quickly as possible, then loads the full-resolution tiles. Set to `0` to disable prefetching.
+
+### `setTileLodMinRadius`
+
+```cpp
+void setTileLodMinRadius(double radius);
+```
+
+Radius around the camera viewpoint (in tile units) within which full-resolution tiles are always used, regardless of LOD reduction.
+
+### `setTileLodScale`
+
+```cpp
+void setTileLodScale(double scale);
+```
+
+Scale factor applied to the distance from the camera viewpoint when computing LOD. Values greater than `1.0` extend the high-detail zone; values less than `1.0` shrink it.
+
+### `setTileLodPitchThreshold`
+
+```cpp
+void setTileLodPitchThreshold(double threshold); // radians
+```
+
+Camera pitch angle above which LOD reduction is applied. Set to `0` to always apply LOD reduction; set to `π` to never apply it.
+
+### `setTileLodZoomShift`
+
+```cpp
+void setTileLodZoomShift(double shift); // default: 0
+```
+
+Shifts the zoom level used for LOD calculations. A value of `-1` reduces the effective zoom level by 1, cutting the tile count by a factor of 4 for the same camera view. Useful for improving performance at the cost of some visual quality.
+
+### `setTileLodMode`
+
+```cpp
+void setTileLodMode(TileLodMode mode);
+```
+
+Selects the tile cover algorithm:
+
+- **`default`** — highest LOD at the center of the screen.
+- **`distance`** — highest LOD closest to the camera. Respects `TileLodScale` and `TileLodPitchThreshold`; ignores `TileLodMinRadius` and `TileLodZoomShift`.
+
+<Tip>
+For highly pitched camera views (tilted maps showing a wide horizon), combining `setTileLodPitchThreshold` with a `setTileLodZoomShift` of `-1` or `-2` can significantly reduce tile requests with minimal visible impact on the near-camera area.
+</Tip>

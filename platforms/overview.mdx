@@ -1,0 +1,86 @@
+---
+title: "Platform overview"
+description: "MapLibre Native supports Android, iOS, Linux, Windows, macOS, Node.js, and Qt. This page summarises rendering backends, build tooling, and distribution methods for each platform."
+---
+
+MapLibre Native uses a monorepo. Source code for all platforms lives in [`maplibre/maplibre-native`](https://github.com/maplibre/maplibre-native) on GitHub.
+
+## Supported platforms
+
+| Platform | Source | Notes |
+|---|---|---|
+| Android | [`platform/android`](https://github.com/maplibre/maplibre-native/tree/main/platform/android) | Integrates with the C++ core via JNI. |
+| iOS | [`platform/ios`](https://github.com/maplibre/maplibre-native/tree/main/platform/ios), [`platform/darwin`](https://github.com/maplibre/maplibre-native/tree/main/platform/darwin) | Integrates with the C++ core via Objective-C++. |
+| Linux | [`platform/linux`](https://github.com/maplibre/maplibre-native/tree/main/platform/linux) | Used for development. Also widely used in production for raster tile generation. |
+| Windows | [`platform/windows`](https://github.com/maplibre/maplibre-native/tree/main/platform/windows) | |
+| macOS | [`platform/macos`](https://github.com/maplibre/maplibre-native/tree/main/platform/macos), [`platform/darwin`](https://github.com/maplibre/maplibre-native/tree/main/platform/darwin) | Mainly used for development. There is some legacy AppKit code. |
+| Node.js | [`platform/node`](https://github.com/maplibre/maplibre-native/tree/main/platform/node) | Uses [NAN](https://github.com/nodejs/nan). Available as [`@maplibre/maplibre-gl-native`](https://www.npmjs.com/package/@maplibre/maplibre-gl-native) on npm. |
+| Qt | [`platform/qt`](https://github.com/maplibre/maplibre-native/tree/main/platform/qt), [maplibre/maplibre-qt](https://github.com/maplibre/maplibre-qt) | Only platform that has partially split to another repository. |
+
+**Android** and **iOS** are considered [core projects](https://github.com/maplibre/maplibre/blob/main/PROJECT_TIERS.md) of the MapLibre Organization.
+
+### GLFW app
+
+An interactive map app that uses GLFW is available in [`platform/glfw`](https://github.com/maplibre/maplibre-native/tree/main/platform/glfw). It works on macOS, Linux, and Windows. Because GLFW adds relatively little complexity, this app is frequently used during development and is a good reference for the C++ API.
+
+## Rendering backends
+
+Originally MapLibre Native only supported OpenGL 2.0. In 2023 the [renderer was modularised](https://github.com/maplibre/maplibre-native/blob/main/design-proposals/2022-10-27-rendering-modularization.md), enabling alternate rendering backends. The first alternate backend was [Metal](https://maplibre.org/news/2024-01-19-metal-support-for-maplibre-native-ios-is-here/), followed by [Vulkan](https://maplibre.org/news/2024-12-12-maplibre-android-vulkan/), and then [WebGPU](https://maplibre.org/news/2025-10-04-maplibre-newsletter-september-2025/).
+
+| Platform | OpenGL ES 3.0 | Vulkan 1.0 | Metal | WebGPU |
+|---|---|---|---|---|
+| Android | ✅ | ✅ | ❌ | ✅ |
+| iOS | ❌ | ❌ | ✅ | ✅ |
+| Linux | ✅ | ✅ | ❌ | ✅ |
+| Windows | ✅ | ❌ | ❌ | ❓ |
+| macOS | ❌ | ✅ | ✅[^1] | ✅ |
+| Node.js | ✅ | ❌ | ✅[^2] | ❌ |
+| Qt | ✅ | ❌ | ❌ | ❌ |
+
+[^1]: Requires MoltenVK. Only available when built via CMake.
+[^2]: Issue reported — see [#2928](https://github.com/maplibre/maplibre-native/issues/2928).
+
+## Build tooling
+
+In 2023 Bazel was adopted as a build tool, primarily because it has better iOS support than CMake. Several platforms support both.
+
+| Platform | CMake | Bazel |
+|---|---|---|
+| Android | ✅ (via Gradle) | ❌ |
+| iOS | ✅[^3] | ✅ |
+| Linux | ✅ | ✅ |
+| Windows | ✅ | ✅ |
+| macOS | ✅ | ✅ |
+| Node.js | ✅ | ❌ |
+| Qt | ✅ | ❌ |
+
+[^3]: Some targets are supported. See the [iOS guide](/platforms/ios#cmake).
+
+## Distribution
+
+| Platform | Distribution method |
+|---|---|
+| Android | Maven Central (`org.maplibre.gl:android-sdk`) |
+| iOS | XCFramework via [maplibre/maplibre-gl-native-distribution](https://github.com/maplibre/maplibre-gl-native-distribution); CocoaPods and Swift Package Manager |
+| Linux | Build from source |
+| Windows | Build from source |
+| macOS | Build from source |
+| Node.js | npm (`@maplibre/maplibre-gl-native`) |
+| Qt | [maplibre/maplibre-qt](https://github.com/maplibre/maplibre-qt) |
+
+## Platform guides
+
+<CardGroup cols={2}>
+  <Card title="Android" icon="android" href="/platforms/android">
+    Build, test, and profile MapLibre Native on Android with Android Studio and Gradle.
+  </Card>
+  <Card title="iOS" icon="apple" href="/platforms/ios">
+    Build and run MapLibre Native on iOS with Bazel and Xcode, or via CMake.
+  </Card>
+  <Card title="Linux" icon="linux" href="/platforms/linux">
+    Build MapLibre Native on Linux with CMake, or use the Docker-based workflow.
+  </Card>
+  <Card title="Windows" icon="windows" href="/platforms/windows">
+    Build MapLibre Native on Windows with MSVC or MSYS2.
+  </Card>
+</CardGroup>

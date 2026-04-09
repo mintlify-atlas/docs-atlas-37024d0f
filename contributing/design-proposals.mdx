@@ -1,0 +1,62 @@
+---
+title: "Design proposals"
+description: "How to write and submit a design proposal for substantial changes to MapLibre Native."
+---
+
+A design proposal is a short document that describes a substantial change to MapLibre Native before any implementation work begins. The goal is to think through a problem collectively, surface trade-offs early, and reach agreement on an approach before writing code.
+
+## When to write a design proposal
+
+A design proposal is appropriate when a change is substantial enough that the community should weigh in before implementation starts. Examples include:
+
+- Splitting the monorepo into separate repositories
+- Introducing a new shader system (e.g. Metal shaders)
+- Significant changes to the renderer architecture
+- New cross-platform abstractions that affect multiple platform targets
+- Changes to core data structures or APIs that break backward compatibility
+
+Smaller changes — bug fixes, performance improvements, documentation updates — do not need a design proposal. When in doubt, open an issue first and ask.
+
+## Process
+
+<Steps>
+  <Step title="Copy the template">
+    Copy the design proposal template from the `design-proposals/` directory in the repository root.
+  </Step>
+  <Step title="Name the file">
+    Use a filename that includes the current date and a short keyword describing the proposal, for example:
+
+    ```
+    design-proposals/2024-03-01-new-renderer-api.md
+    ```
+  </Step>
+  <Step title="Fill out the template">
+    Complete all sections of the template. Describe the motivation, the proposed solution, alternatives considered, and known trade-offs.
+  </Step>
+  <Step title="Submit a pull request">
+    Open a pull request with your new design proposal file. The PR description should summarize what you are proposing and what feedback you are looking for.
+  </Step>
+  <Step title="Discuss and iterate">
+    The community reviews and comments on the pull request. Revise the proposal in response to feedback until discussions have settled.
+  </Step>
+  <Step title="Call a vote">
+    Once discussion has settled, call a vote:
+
+    - Contributors **in favor** approve the pull request.
+    - Contributors **against** leave a comment stating their rejection and reasoning.
+    - Allow at least **72 hours** for voting.
+    - If a **majority** of those who voted are in favor, the proposal can be merged.
+  </Step>
+</Steps>
+
+<Note>
+The 72-hour voting window is a minimum. For proposals with significant scope or community interest, consider allowing more time.
+</Note>
+
+## Accepted proposals
+
+Merged design proposals are stored in the [`design-proposals/` directory on GitHub](https://github.com/maplibre/maplibre-native/tree/main/design-proposals). Reading accepted proposals is a good way to understand the reasoning behind major architectural decisions in the codebase.
+
+<Tip>
+Before writing a new proposal, browse the accepted proposals to check whether a similar idea has already been discussed, accepted, or rejected.
+</Tip>

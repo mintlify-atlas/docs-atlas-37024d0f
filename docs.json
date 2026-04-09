@@ -1,122 +1,96 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "MapLibre Native",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#2e5ead",
+    "light": "#92b6e6",
+    "dark": "#2e5ead"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/924c2661-7b80-42c6-b7ae-f522dd8e0760.png",
+  "logo": {
+    "light": "https://media.brand.dev/042e9a93-b5df-4263-85e3-481cc1f4aabe.svg",
+    "dark": "https://media.brand.dev/042e9a93-b5df-4263-85e3-481cc1f4aabe.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/maplibre/maplibre-native"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/maplibre/maplibre-native"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "getting-started/android",
+              "getting-started/ios",
+              "getting-started/nodejs"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Platform Guides",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "platforms/overview",
+              "platforms/android",
+              "platforms/ios",
+              "platforms/linux",
+              "platforms/windows"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "concepts/architecture",
+              "concepts/style-system",
+              "concepts/rendering",
+              "concepts/offline-maps"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Contributing",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "contributing/overview",
+              "contributing/building",
+              "contributing/testing",
+              "contributing/design-proposals"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "C++ Core API",
             "pages": [
-              "api-reference/introduction"
+              "reference/map",
+              "reference/style",
+              "reference/layers",
+              "reference/sources",
+              "reference/camera"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Rendering Backends",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "reference/opengl",
+              "reference/metal",
+              "reference/vulkan",
+              "reference/webgpu"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

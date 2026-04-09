@@ -1,0 +1,71 @@
+---
+title: "Introduction"
+description: "MapLibre Native is a free and open-source C++ library for GPU-accelerated vector tile map rendering on Android, iOS, Node.js, Linux, Windows, macOS, and Qt."
+---
+
+MapLibre Native is a free and open-source library for publishing maps in native apps and desktop applications across multiple platforms. It renders vector tile maps on the GPU, making map display fast and smooth.
+
+## History
+
+MapLibre Native originated as a community-led fork of **Mapbox GL Native** after Mapbox switched to a non-open-source license in December 2020. Development continued under the MapLibre Organization, governed openly with corporate and community sponsors.
+
+The library uses stylesheets that conform to the [MapLibre Style Specification](https://maplibre.org/maplibre-style-spec/) (a fork of the Mapbox Style Spec) and the Mapbox Vector Tile Specification as its vector tile format.
+
+## License
+
+MapLibre Native is licensed under the [BSD 2-Clause License](https://github.com/maplibre/maplibre-native/blob/main/LICENSE.md). The source code is available at [github.com/maplibre/maplibre-native](https://github.com/maplibre/maplibre-native).
+
+## Supported platforms
+
+| Platform | Package | Rendering backend |
+|---|---|---|
+| Android | `org.maplibre.gl:android-sdk` | Vulkan (OpenGL ES via `-opengl` package) |
+| iOS | CocoaPods / Swift Package Manager | Metal |
+| Linux | Build from source | OpenGL ES |
+| Windows | Build from source | OpenGL ES |
+| macOS | Build from source | Metal |
+| Node.js | `@maplibre/maplibre-gl-native` | OpenGL ES (headless) |
+| Qt | `maplibre/maplibre-native-qt` | OpenGL ES |
+
+## Architecture
+
+MapLibre Native has a **C++ core** shared across all platforms. Platform SDKs sit on top of this core and provide idiomatic APIs for each target language and environment.
+
+```
+┌─────────────────────────────────────────────────┐
+│              Platform SDKs                       │
+│  Android (Kotlin/Java)  │  iOS (Swift/ObjC)     │
+│  Node.js (JavaScript)   │  Qt (C++)             │
+├─────────────────────────────────────────────────┤
+│              C++ Core (mbgl::Map)                │
+│  Style system · Tile fetching · Layout engine    │
+├──────────┬──────────┬──────────┬────────────────┤
+│  Vulkan  │  Metal   │ OpenGL ES│    WebGPU      │
+└──────────┴──────────┴──────────┴────────────────┘
+```
+
+The C++ core handles:
+
+- Parsing and applying [MapLibre Style Specification](https://maplibre.org/maplibre-style-spec/) stylesheets
+- Fetching and caching vector tiles and other map resources
+- Running the layout and placement engine for labels and symbols
+- Issuing draw calls to the selected GPU rendering backend
+
+Platform SDKs wrap the core and expose map views, camera controls, annotations, offline storage, and other platform-native features.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Android quickstart" icon="android" href="/getting-started/android">
+    Add MapLibre Native to your Android app with Gradle and display your first map.
+  </Card>
+  <Card title="iOS quickstart" icon="apple" href="/getting-started/ios">
+    Integrate MapLibre Native into your iOS app via Swift Package Manager or CocoaPods.
+  </Card>
+  <Card title="Node.js quickstart" icon="node-js" href="/getting-started/nodejs">
+    Render map tiles server-side with the `@maplibre/maplibre-gl-native` npm package.
+  </Card>
+  <Card title="Other platforms" icon="layer-group" href="https://github.com/maplibre/maplibre-native/tree/main/platform">
+    Build MapLibre Native for Linux, Windows, macOS, or Qt from source.
+  </Card>
+</CardGroup>

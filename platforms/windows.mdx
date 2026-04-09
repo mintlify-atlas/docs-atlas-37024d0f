@@ -1,0 +1,149 @@
+---
+title: "Windows"
+description: "Build MapLibre Native on Windows using Microsoft Visual Studio (MSVC) or MSYS2. Covers prerequisites, cloning the repository, configuring CMake presets, building, and testing with mbgl-render."
+---
+
+This guide explains how to build MapLibre Native on Windows. The files produced by building the `mbgl-core` target can be reused as libraries in other projects. Some targets are executables (test runners and GLFW), and Node targets are shared libraries for Node.js applications.
+
+Two build methods are supported:
+
+- **MSVC** — Microsoft Visual Studio 2022 with the `cmake` command-line tool or the Visual Studio IDE
+- **MSYS2** — Clang-based build in a Unix-like shell environment on Windows
+
+<Tabs>
+  <Tab title="MSVC">
+    ## Prerequisites
+
+    The build has been tested with Microsoft Visual Studio 2022. Visual Studio 2019 may also work.
+
+    <Steps>
+      <Step title="Install Visual Studio components">
+        Open **Visual Studio Installer** and select **Desktop Development with C++**. In the right pane, ensure **C++ CMake tools for Windows** is checked. If git is not already installed, also select **Git for Windows** under **Individual Components**.
+      </Step>
+      <Step title="Clone the repository">
+        Open **x64 Native Tools Command Prompt for VS 2022** and clone the repository:
+
+        ```cmd
+        git clone --config core.longpaths=true --depth 1 --recurse-submodules -j8 https://github.com/maplibre/maplibre-native.git
+        cd maplibre-native
+        ```
+
+        <Note>
+          The `--config core.longpaths=true` flag is required to avoid `Filename too long` errors. If you have already set `core.longpaths=true` globally with `git config --system core.longpaths=true`, you can omit this flag.
+        </Note>
+      </Step>
+      <Step title="Configure">
+        Replace `<preset>` with `opengl`, `egl`, or `vulkan`. If you are unsure, use `opengl`:
+
+        ```cmd
+        cmake --preset windows-<preset>
+        ```
+
+        This step downloads and installs all dependencies. It may take some time on the first run.
+      </Step>
+      <Step title="Build">
+        ```cmd
+        cmake --build build-windows-<preset>
+        ```
+      </Step>
+    </Steps>
+
+    ### Building with the Visual Studio IDE
+
+    Add `-G "Microsoft Visual Studio 17 2022"` to the configure step:
+
+    ```cmd
+    cmake --preset windows-<preset> -G "Microsoft Visual Studio 17 2022"
+    ```
+
+    Once configuration is complete, open `build-windows-<preset>\MapLibre Native.sln`. Build the `ALL_BUILD` target to build everything, or select a specific target. Select a build configuration (`Release`, `RelWithDebInfo`, `MinSizeRel`, or `Debug`) — the default is `Debug`.
+
+    ### Testing
+
+    If you built the `mbgl-render` or `ALL_BUILD` target, a `mbgl-render.exe` binary is in `build-windows-<preset>\bin\`. Test it with:
+
+    ```cmd
+    .\build-windows-<preset>\bin\mbgl-render.exe --style https://raw.githubusercontent.com/maplibre/demotiles/gh-pages/style.json --output out.png
+    ```
+
+    This produces an `out.png` map tile image with default MapLibre styling.
+
+    To render from your own style and tiles, replace the `--style` path with the path to your style JSON file:
+
+    ```cmd
+    .\build-windows-<preset>\bin\mbgl-render.exe --style path\to\style.json --output out.png
+    ```
+  </Tab>
+  <Tab title="MSYS2">
+    ## Prerequisites
+
+    Install [MSYS2](https://www.msys2.org/). Then launch an MSYS2 shell — `UCRT64`, `CLANG64`, `CLANGARM64`, or `MINGW64` all work.
+
+    <Steps>
+      <Step title="Install required packages">
+        ```sh
+        pacman -S --needed \
+            git \
+            ${MINGW_PACKAGE_PREFIX}-toolchain \
+            ${MINGW_PACKAGE_PREFIX}-clang \
+            ${MINGW_PACKAGE_PREFIX}-cmake \
+            ${MINGW_PACKAGE_PREFIX}-angleproject \
+            ${MINGW_PACKAGE_PREFIX}-curl-winssl \
+            ${MINGW_PACKAGE_PREFIX}-dlfcn \
+            ${MINGW_PACKAGE_PREFIX}-glfw \
+            ${MINGW_PACKAGE_PREFIX}-icu \
+            ${MINGW_PACKAGE_PREFIX}-libjpeg-turbo \
+            ${MINGW_PACKAGE_PREFIX}-libpng \
+            ${MINGW_PACKAGE_PREFIX}-libwebp \
+            ${MINGW_PACKAGE_PREFIX}-libuv
+        ```
+      </Step>
+      <Step title="Clone the repository">
+        ```sh
+        git clone --depth 1 --recurse-submodules -j8 https://github.com/maplibre/maplibre-native.git
+        cd maplibre-native
+        ```
+      </Step>
+      <Step title="Configure">
+        Replace `<preset>` with `opengl`, `egl`, or `vulkan`. If you are unsure, use `opengl`:
+
+        ```sh
+        cmake --preset windows-<preset> -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+        ```
+      </Step>
+      <Step title="Build">
+        ```sh
+        cmake --build build-windows-<preset>
+        ```
+      </Step>
+    </Steps>
+
+    ### Testing
+
+    If you built the `mbgl-render` or `ALL_BUILD` target, a `mbgl-render.exe` binary is in `build-windows-<preset>/bin/`. Test it with:
+
+    ```sh
+    ./build-windows-<preset>/bin/mbgl-render.exe --style https://raw.githubusercontent.com/maplibre/demotiles/gh-pages/style.json --output out.png
+    ```
+
+    This produces an `out.png` map tile image with default MapLibre styling.
+
+    To render from your own style and tiles, replace the `--style` path with the path to your style JSON file:
+
+    ```sh
+    ./build-windows-<preset>/bin/mbgl-render.exe --style path/to/style.json --output out.png
+    ```
+  </Tab>
+</Tabs>
+
+## Rendering backends
+
+Windows supports the following rendering backends via CMake presets:
+
+| Preset | Backend | Status |
+|---|---|---|
+| `windows-opengl` | OpenGL ES | Stable |
+| `windows-egl` | OpenGL ES (EGL) | Stable |
+| `windows-vulkan` | Vulkan | Stable |
+
+Substitute the preset name in both the `cmake --preset` and `cmake --build` commands to select the desired backend.

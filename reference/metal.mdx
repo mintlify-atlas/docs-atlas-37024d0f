@@ -1,0 +1,56 @@
+---
+title: "Metal"
+description: "Apple Metal rendering backend"
+keywords: ["Metal", "Apple", "iOS", "macOS", "rendering", "backend", "MoltenVK"]
+---
+
+Metal is Apple's low-overhead graphics API. It became the default rendering backend for MapLibre Native on iOS in 2024 and is the recommended backend for all Apple platforms.
+
+## Platform support
+
+| Platform | Support |
+|----------|---------|
+| Android  | No |
+| iOS      | Yes (default) |
+| Linux    | No |
+| Windows  | No |
+| macOS    | Yes (CMake builds only, requires MoltenVK) |
+| Node.js  | Experimental |
+
+<Warning>
+On macOS, Metal is only available when building via CMake and requires [MoltenVK](https://github.com/KhronosGroup/MoltenVK). Bazel builds on macOS do not support Metal.
+</Warning>
+
+<Note>
+Metal support on Node.js has a known issue. See [#2928](https://github.com/maplibre/maplibre-native/issues/2928) for the current status.
+</Note>
+
+## Enabling Metal
+
+### iOS (CMake)
+
+Metal is the default preset for iOS. To generate an Xcode project:
+
+```bash
+cmake --preset ios-metal -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+xed "build-ios/MapLibre Native.xcodeproj"
+```
+
+Internally, the preset sets `-DMLN_WITH_METAL=ON`.
+
+### iOS (Bazel)
+
+Pass the `--//:renderer=metal` flag to any Bazel build or run command:
+
+```bash
+bazel build //platform/ios:MapLibre --//:renderer=metal
+```
+
+### macOS (CMake)
+
+```bash
+cmake --preset macos-metal
+cmake --build build-macos-metal
+```
+
+MoltenVK must be installed and discoverable by CMake before configuring.

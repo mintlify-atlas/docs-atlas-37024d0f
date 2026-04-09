@@ -1,0 +1,103 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "MapLibre Native",
+  "projectDescription": "A free and open-source C++ library for GPU-accelerated vector tile map rendering on Android, iOS, Node.js, and other native platforms.",
+  "theme": "palm",
+  "primaryColor": "#2e5ead",
+  "lightColor": "#92b6e6",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "getting-started/android",
+              "getting-started/ios",
+              "getting-started/nodejs"
+            ]
+          },
+          {
+            "group": "Platform Guides",
+            "pages": [
+              "platforms/overview",
+              "platforms/android",
+              "platforms/ios",
+              "platforms/linux",
+              "platforms/windows"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/style-system",
+              "concepts/rendering",
+              "concepts/offline-maps"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing/overview",
+              "contributing/building",
+              "contributing/testing",
+              "contributing/design-proposals"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "C++ Core API",
+            "pages": [
+              "reference/map",
+              "reference/style",
+              "reference/layers",
+              "reference/sources",
+              "reference/camera"
+            ]
+          },
+          {
+            "group": "Rendering Backends",
+            "pages": [
+              "reference/opengl",
+              "reference/metal",
+              "reference/vulkan",
+              "reference/webgpu"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "GPU-accelerated vector tile rendering via OpenGL, Metal, Vulkan, and WebGPU backends",
+    "Cross-platform support for Android, iOS, Linux, Windows, macOS, Node.js, and Qt",
+    "Runtime styling API for dynamic map style manipulation",
+    "Offline maps with SQLite-based tile caching",
+    "MapLibre Style Specification compliance with expressions support",
+    "Modular renderer architecture supporting multiple graphics APIs",
+    "Immutable style diffing for efficient frame-to-frame updates",
+    "Multi-threaded tile loading and layout with actor-based message passing"
+  ],
+  "publicApiSurface": [
+    "mbgl::Map — main map control class (camera, style, annotations, debug)",
+    "mbgl::style::Style — runtime style manipulation (layers, sources, images)",
+    "mbgl::style::Layer and subclasses (BackgroundLayer, CircleLayer, FillLayer, LineLayer, SymbolLayer, RasterLayer, HeatmapLayer, HillshadeLayer, FillExtrusionLayer, CustomLayer)",
+    "mbgl::style::Source and subclasses (VectorSource, RasterSource, GeoJSONSource, ImageSource, RasterDEMSource, CustomGeometrySource)",
+    "mbgl::CameraOptions, mbgl::AnimationOptions, mbgl::FreeCameraOptions — camera control",
+    "mbgl::RendererFrontend — platform renderer integration interface",
+    "mbgl::MapObserver — map lifecycle event callbacks",
+    "mbgl::ResourceOptions, mbgl::ClientOptions — network and client configuration",
+    "@maplibre/maplibre-gl-native npm package (Node.js): mbgl.Map, map.load(), map.render(), map.release()",
+    "org.maplibre.gl:android-sdk (Android): MapView, MapLibre.getInstance(), MapboxMap, Style",
+    "MLNMapView, MLNMapViewDelegate (iOS/Objective-C)",
+    "MLNStyle, MLNSource, MLNLayer and subclasses (iOS)"
+  ]
+}

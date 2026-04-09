@@ -1,0 +1,215 @@
+---
+title: "mbgl::style::Style"
+description: "Runtime style manipulation — load styles and manage layers, sources, and images."
+keywords: ["style", "mbgl", "C++", "layers", "sources", "images", "runtime styling"]
+---
+
+`mbgl::style::Style` owns the runtime representation of a [MapLibre Style Specification](https://maplibre.org/maplibre-style-spec/) document. It is not constructed directly; access it through `mbgl::Map::getStyle()`.
+
+```cpp
+style::Style& style = map.getStyle();
+```
+
+---
+
+## Loading a style
+
+```cpp
+void loadURL(const std::string& url);
+void loadJSON(const std::string& json);
+
+std::string getURL() const;
+std::string getJSON() const;
+```
+
+### From a URL
+
+Pass a fully-qualified URL. Supported schemes depend on the `FileSource` registered with the map.
+
+```cpp
+map.getStyle().loadURL("https://demotiles.maplibre.org/style.json");
+```
+
+Tile server shorthand URLs (e.g. `maplibre://styles/...`) are resolved by a custom `FileSource`.
+
+### From a JSON string
+
+Pass a complete, valid style JSON string.
+
+```cpp
+const std::string json = R"({
+  "version": 8,
+  "sources": {},
+  "layers": []
+})";
+map.getStyle().loadJSON(json);
+```
+
+<Warning>
+Calling `loadURL()` or `loadJSON()` while a style is already loading cancels the in-flight request. Previously added runtime layers and sources are removed.
+</Warning>
+
+---
+
+## Style metadata
+
+```cpp
+std::string   getName() const;
+CameraOptions getDefaultCamera() const;
+```
+
+`getName()` returns the `name` field from the style JSON. `getDefaultCamera()` returns the `center`, `zoom`, `bearing`, and `pitch` specified at the top level of the style.
+
+---
+
+## Transitions
+
+```cpp
+TransitionOptions getTransitionOptions() const;
+void              setTransitionOptions(const TransitionOptions&);
+```
+
+`TransitionOptions` controls the default duration and delay for paint property transitions across the entire style.
+
+---
+
+## Sources
+
+```cpp
+// Query
+std::vector<Source*>       getSources();
+std::vector<const Source*> getSources() const;
+Source*                    getSource(const std::string& sourceID);
+const Source*              getSource(const std::string& sourceID) const;
+
+// Mutate
+void                       addSource(std::unique_ptr<Source> source);
+std::unique_ptr<Source>    removeSource(const std::string& sourceID);
+```
+
+`addSource()` transfers ownership of the source to the style. Sources must be added before any layer that references them.
+
+`removeSource()` returns ownership to the caller. If the source is still referenced by a layer, removal may be deferred.
+
+<Note>
+Calling `getSource()` with an ID that does not exist returns `nullptr`. Always check the returned pointer before use.
+</Note>
+
+---
+
+## Layers
+
+```cpp
+// Query
+std::vector<Layer*>       getLayers();
+std::vector<const Layer*> getLayers() const;
+Layer*                    getLayer(const std::string& layerID);
+const Layer*              getLayer(const std::string& layerID) const;
+
+// Mutate
+void                   addLayer(std::unique_ptr<Layer> layer,
+                                const std::optional<std::string>& beforeLayerID = std::nullopt);
+std::unique_ptr<Layer> removeLayer(const std::string& layerID);
+```
+
+Layers are drawn in order from first (bottom) to last (top). `addLayer()` appends to the top by default. Pass `beforeLayerID` to insert below a specific layer.
+
+`removeLayer()` returns ownership to the caller and removes the layer from the rendering pipeline.
+
+---
+
+## Images
+
+```cpp
+std::optional<Image> getImage(const std::string& imageID) const;
+void                 addImage(std::unique_ptr<Image> image);
+void                 removeImage(const std::string& imageID);
+```
+
+Images registered here are available to symbol layers as sprite icons and as `fill-pattern` / `line-pattern` values. Override existing images by calling `addImage()` with the same ID.
+
+---
+
+## Light
+
+```cpp
+Light*       getLight();
+const Light* getLight() const;
+void         setLight(std::unique_ptr<Light> light);
+```
+
+The style has a single global light source. Modify it at runtime to change the direction, color, and intensity of 3D extrusion shadows.
+
+---
+
+## Style loading callbacks
+
+Implement `mbgl::MapObserver` to receive asynchronous events during style loading:
+
+```cpp
+class MyObserver : public mbgl::MapObserver {
+public:
+    void onDidFinishLoadingStyle() override {
+        // Safe to add runtime layers and sources here.
+    }
+
+    void onDidFailLoadingMap(mbgl::MapLoadError error,
+                             const std::string& description) override {
+        // Handle StyleParseError, StyleLoadError, NotFoundError, or UnknownError.
+    }
+
+    void onStyleImageMissing(const std::string& imageID) override {
+        // Dynamically supply a missing sprite image.
+    }
+};
+```
+
+| Callback | When it fires |
+|----------|---------------|
+| `onWillStartLoadingMap()` | A new style URL or JSON has been submitted. |
+| `onDidFinishLoadingMap()` | All tile and glyph resources for the current viewport are loaded. |
+| `onDidFinishLoadingStyle()` | The style JSON is parsed and the source/layer graph is built. Safe to mutate the style. |
+| `onDidFailLoadingMap(error, description)` | The style failed to load. `error` is one of `StyleParseError`, `StyleLoadError`, `NotFoundError`, `UnknownError`. |
+| `onStyleImageMissing(id)` | A layer referenced an image not present in the sprite. Call `addImage()` inside this callback. |
+| `onSourceChanged(source)` | A source's data or metadata changed. |
+
+---
+
+## Example: adding a GeoJSON source and fill layer
+
+```cpp
+#include <mbgl/map/map.hpp>
+#include <mbgl/style/style.hpp>
+#include <mbgl/style/sources/geojson_source.hpp>
+#include <mbgl/style/layers/fill_layer.hpp>
+#include <mbgl/util/geojson.hpp>
+
+void addPolygonOverlay(mbgl::Map& map) {
+    auto& style = map.getStyle();
+
+    // 1. Build a GeoJSON FeatureCollection.
+    const std::string geojson = R"({
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[13.38, 52.51],[13.42, 52.51],
+                                  [13.42, 52.48],[13.38, 52.48],
+                                  [13.38, 52.51]]]
+            }
+        }]
+    })";
+
+    // 2. Create and configure the source.
+    auto source = std::make_unique<mbgl::style::GeoJSONSource>("my-polygon-source");
+    source->setGeoJSON(mapbox::geojson::parse(geojson));
+    style.addSource(std::move(source));
+
+    // 3. Create and configure the fill layer.
+    auto layer = std::make_unique<mbgl::style::FillLayer>("my-fill-layer", "my-polygon-source");
+    layer->setFillColor(mbgl::Color{0.2f, 0.6f, 1.0f, 0.6f});
+    layer->setFillOpacity({0.8f});
+    style.addLayer(std::move(layer));
+}
+```

@@ -1,0 +1,124 @@
+---
+title: "Building from source"
+description: "How to build MapLibre Native from source on Android, iOS, and Linux using Gradle, Bazel, and CMake."
+---
+
+MapLibre Native uses CMake as its primary build system, with Bazel supported for iOS and Linux. Android builds use Gradle, which drives the NDK and CMake internally.
+
+## Prerequisites
+
+Prerequisites vary by platform. At minimum you need:
+
+- Git (with submodule support)
+- CMake 3.25 or later (for CMake-based platforms)
+- A C++17-capable compiler (Clang recommended)
+- [ccache](https://ccache.dev/) (optional but strongly recommended)
+
+Platform-specific dependencies are covered in the platform pages linked below.
+
+## Clone the repository
+
+```bash
+git clone --recurse-submodules https://github.com/maplibre/maplibre-native.git
+```
+
+<Note>
+Always use `--recurse-submodules`. The build will fail without the submodules present.
+</Note>
+
+## CMake presets
+
+The repository ships a `CMakePresets.json` with ready-to-use configurations. List available presets with:
+
+```bash
+cmake --list-presets
+```
+
+Key presets:
+
+| Preset | Platform | Renderer |
+|---|---|---|
+| `linux-opengl` | Linux | OpenGL |
+| `linux-vulkan` | Linux | Vulkan |
+| `linux-webgpu-dawn` | Linux | WebGPU (Dawn) |
+| `linux-webgpu-wgpu` | Linux | WebGPU (wgpu-native) |
+| `macos-metal` | macOS | Metal |
+| `macos-vulkan` | macOS | Vulkan |
+| `ios-metal` | iOS | Metal |
+| `ios-webgpu-dawn` | iOS | WebGPU (Dawn) |
+
+Configure and build using a preset:
+
+```bash
+cmake --preset linux-opengl
+cmake --build build-linux-opengl
+```
+
+## Platform build instructions
+
+<Tabs>
+  <Tab title="Android">
+    Android builds use Gradle. Open the `platform/android` directory as a project in Android Studio, or build from the command line:
+
+    ```bash
+    cd platform/android
+    ./gradlew assembleRelease
+    ```
+
+    The Android build internally invokes CMake via the Android NDK toolchain. No separate CMake configuration step is required.
+
+    For full setup instructions including NDK version requirements, see the [Android platform docs](https://maplibre.org/maplibre-native/docs/book/).
+  </Tab>
+  <Tab title="iOS">
+    iOS supports both CMake (with the Xcode generator) and Bazel. Bazel is the recommended path for day-to-day development.
+
+    **Bazel:**
+
+    ```bash
+    bazel build //platform/ios:MapLibre --//:renderer=metal
+    ```
+
+    **CMake (Xcode generator):**
+
+    ```bash
+    cmake --preset ios-metal
+    cmake --build build-ios
+    ```
+
+    iOS builds require macOS and Xcode. The minimum deployment target is iOS 14.0.
+
+    For full setup instructions, see the [iOS platform docs](https://maplibre.org/maplibre-native/docs/book/).
+  </Tab>
+  <Tab title="Linux / Desktop">
+    Linux builds use CMake with the Ninja generator. Install the required system packages for your distribution, then:
+
+    ```bash
+    cmake --preset linux-opengl
+    cmake --build build-linux-opengl
+    ```
+
+    Substitute `linux-opengl` with another preset (e.g. `linux-vulkan`) to build with a different renderer backend.
+
+    Bazel is also supported on Linux:
+
+    ```bash
+    bazel build //platform/linux:maplibre --//:renderer=opengl
+    ```
+
+    For full setup instructions including system dependency lists, see the [Linux platform docs](https://maplibre.org/maplibre-native/docs/book/).
+  </Tab>
+</Tabs>
+
+## Notable CMake options
+
+These flags can be passed via `-D` or added to a custom preset:
+
+| Option | Default | Description |
+|---|---|---|
+| `MLN_WITH_OPENGL` | `OFF` | Enable OpenGL renderer |
+| `MLN_WITH_VULKAN` | `OFF` | Enable Vulkan renderer |
+| `MLN_WITH_METAL` | `OFF` | Enable Metal renderer |
+| `MLN_WITH_CLANG_TIDY` | `OFF` | Run clang-tidy during build |
+| `MLN_WITH_COVERAGE` | `OFF` | Enable code coverage collection |
+| `MLN_WITH_SANITIZER` | `OFF` | Enable address/thread/UB sanitizer |
+| `MLN_WITH_PMTILES` | `ON` | Build with PMTiles support |

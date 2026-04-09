@@ -1,0 +1,412 @@
+---
+title: "Source types"
+description: "Data source types for map layers in MapLibre Native."
+keywords: ["sources", "mbgl", "C++", "GeoJSON", "vector", "raster", "image", "custom"]
+---
+
+Sources provide the geographic data that layers render. Each source is identified by a unique string ID and is owned by the style. All source classes are in the `mbgl::style` namespace and inherit from `mbgl::style::Source`.
+
+## Adding and removing sources
+
+```cpp
+style::Style& style = map.getStyle();
+
+// Add a source (style takes ownership).
+style.addSource(std::make_unique<VectorSource>("my-source", "https://example.com/tiles.json"));
+
+// Retrieve a typed pointer.
+auto* src = style.getSource("my-source");
+if (auto* vec = src->as<VectorSource>()) { /* ... */ }
+
+// Remove and reclaim ownership.
+auto owned = style.removeSource("my-source");
+```
+
+<Note>
+`getSource()` returns `nullptr` when the ID is not found. Sources in use by active layers may be deferred on removal.
+</Note>
+
+---
+
+## Source types
+
+<AccordionGroup>
+
+<Accordion title="VectorSource" defaultOpen>
+
+**Class:** `mbgl::style::VectorSource`  
+**Header:** `<mbgl/style/sources/vector_source.hpp>`
+
+Loads Mapbox Vector Tiles (MVT) from a TileJSON URL or a `Tileset` descriptor. Used with `CircleLayer`, `FillLayer`, `LineLayer`, `SymbolLayer`, and others.
+
+```cpp
+VectorSource(std::string id,
+             variant<std::string, Tileset> urlOrTileset,
+             std::optional<float>          maxZoom   = std::nullopt,
+             std::optional<float>          minZoom   = std::nullopt,
+             Tileset::VectorEncoding       encoding  = Tileset::VectorEncoding::Mapbox);
+```
+
+<ParamField path="id" type="string" required>
+  Unique source identifier referenced by layers.
+</ParamField>
+
+<ParamField path="urlOrTileset" type="variant<string, Tileset>" required>
+  Either a TileJSON URL (e.g. `"https://example.com/tiles.json"`) or an inline `Tileset` struct with `tiles`, `minzoom`, `maxzoom`, and `bounds`.
+</ParamField>
+
+<ParamField path="maxZoom" type="float">
+  Override the maximum zoom from the TileJSON. Tiles at higher zoom levels are overscaled.
+</ParamField>
+
+<ParamField path="minZoom" type="float">
+  Override the minimum zoom from the TileJSON.
+</ParamField>
+
+<ParamField path="encoding" type="Tileset::VectorEncoding">
+  Tile encoding. `Mapbox` (default) or `GoogleMapsDirect`.
+</ParamField>
+
+Tile URLs can be updated at runtime:
+
+```cpp
+source->setTiles({"https://example.com/{z}/{x}/{y}.mvt"});
+const auto& tiles = source->getTiles();
+```
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/vector_source.hpp>
+
+auto source = std::make_unique<mbgl::style::VectorSource>(
+    "openmaptiles",
+    std::string{"https://api.maptiler.com/tiles/v3/tiles.json?key=YOUR_KEY"}
+);
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+<Accordion title="RasterSource">
+
+**Class:** `mbgl::style::RasterSource`  
+**Header:** `<mbgl/style/sources/raster_source.hpp>`
+
+Loads raster tile imagery from a TileJSON URL or `Tileset`. Used exclusively with `RasterLayer`.
+
+```cpp
+RasterSource(std::string id,
+             variant<std::string, Tileset> urlOrTileset,
+             uint16_t                      tileSize,
+             SourceType                    sourceType = SourceType::Raster);
+```
+
+<ParamField path="id" type="string" required>
+  Unique source identifier.
+</ParamField>
+
+<ParamField path="urlOrTileset" type="variant<string, Tileset>" required>
+  TileJSON URL or inline `Tileset`.
+</ParamField>
+
+<ParamField path="tileSize" type="uint16_t" required>
+  Tile pixel dimensions (e.g. `256` or `512`). Must match the tile server's output size.
+</ParamField>
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/raster_source.hpp>
+
+auto source = std::make_unique<mbgl::style::RasterSource>(
+    "satellite",
+    std::string{"https://example.com/satellite/{z}/{x}/{y}.png"},
+    256
+);
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+<Accordion title="GeoJSONSource">
+
+**Class:** `mbgl::style::GeoJSONSource`  
+**Header:** `<mbgl/style/sources/geojson_source.hpp>`
+
+Loads GeoJSON data either from a URL or from an in-memory `GeoJSON` value. Tiles are generated client-side using geojson-vt. Supports optional supercluster-based point clustering.
+
+```cpp
+GeoJSONSource(std::string id,
+              Immutable<GeoJSONOptions> options = GeoJSONOptions::defaultOptions());
+```
+
+<ParamField path="id" type="string" required>
+  Unique source identifier.
+</ParamField>
+
+<ParamField path="options" type="GeoJSONOptions">
+  Tiling and clustering configuration (see below).
+</ParamField>
+
+### Setting data
+
+```cpp
+// From a URL (re-fetched when the style reloads).
+source->setURL("https://example.com/data.geojson");
+
+// From an in-memory GeoJSON value.
+source->setGeoJSON(mapbox::geojson::parse(jsonString));
+
+// From a pre-tiled GeoJSONData object (advanced).
+source->setGeoJSONData(std::shared_ptr<GeoJSONData> data);
+```
+
+### GeoJSONOptions
+
+<ParamField path="minzoom" type="uint8_t" default="0">
+  Minimum zoom at which tiles are generated.
+</ParamField>
+
+<ParamField path="maxzoom" type="uint8_t" default="18">
+  Maximum zoom at which tiles are generated. Data is overscaled above this zoom.
+</ParamField>
+
+<ParamField path="buffer" type="uint16_t" default="128">
+  Tile buffer size in pixels. Larger values reduce clipping at tile edges.
+</ParamField>
+
+<ParamField path="tolerance" type="double" default="0.375">
+  Simplification tolerance in screen pixels. Higher values produce fewer vertices.
+</ParamField>
+
+<ParamField path="lineMetrics" type="bool" default="false">
+  Preserve line metrics for `line-gradient` paint property support.
+</ParamField>
+
+<ParamField path="cluster" type="bool" default="false">
+  Enable point clustering via supercluster.
+</ParamField>
+
+<ParamField path="clusterRadius" type="uint16_t" default="50">
+  Cluster radius in pixels.
+</ParamField>
+
+<ParamField path="clusterMaxZoom" type="uint8_t" default="17">
+  Maximum zoom at which clustering is applied.
+</ParamField>
+
+<ParamField path="clusterMinPoints" type="size_t" default="2">
+  Minimum number of points needed to form a cluster.
+</ParamField>
+
+<ParamField path="synchronousUpdate" type="bool" default="false">
+  Process tile updates synchronously. Useful for testing.
+</ParamField>
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/geojson_source.hpp>
+
+mbgl::style::GeoJSONOptions opts;
+opts.cluster        = true;
+opts.clusterRadius  = 60;
+opts.clusterMaxZoom = 14;
+
+auto source = std::make_unique<mbgl::style::GeoJSONSource>(
+    "stations",
+    mbgl::Immutable<mbgl::style::GeoJSONOptions>(std::make_shared<mbgl::style::GeoJSONOptions>(opts))
+);
+source->setURL("https://example.com/stations.geojson");
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+<Accordion title="ImageSource">
+
+**Class:** `mbgl::style::ImageSource`  
+**Header:** `<mbgl/style/sources/image_source.hpp>`
+
+Displays a single raster image stretched over four geographic coordinates. Used with `RasterLayer`.
+
+```cpp
+ImageSource(std::string id, std::array<LatLng, 4> coordinates);
+```
+
+<ParamField path="id" type="string" required>
+  Unique source identifier.
+</ParamField>
+
+<ParamField path="coordinates" type="array<LatLng, 4>" required>
+  Four corners of the image in geographic coordinates: top-left, top-right, bottom-right, bottom-left.
+</ParamField>
+
+```cpp
+// Load from URL.
+source->setURL("https://example.com/overlay.png");
+
+// Or supply pixel data directly.
+source->setImage(std::move(premultipliedImage));
+
+// Update corners at runtime.
+source->setCoordinates({topLeft, topRight, bottomRight, bottomLeft});
+std::array<LatLng, 4> corners = source->getCoordinates();
+```
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/image_source.hpp>
+
+std::array<mbgl::LatLng, 4> corners = {
+    mbgl::LatLng{52.54, 13.36},  // top-left
+    mbgl::LatLng{52.54, 13.44},  // top-right
+    mbgl::LatLng{52.47, 13.44},  // bottom-right
+    mbgl::LatLng{52.47, 13.36},  // bottom-left
+};
+auto source = std::make_unique<mbgl::style::ImageSource>("radar", corners);
+source->setURL("https://example.com/radar.png");
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+<Accordion title="RasterDEMSource">
+
+**Class:** `mbgl::style::RasterDEMSource`  
+**Header:** `<mbgl/style/sources/raster_dem_source.hpp>`
+
+Loads Raster DEM (Digital Elevation Model) tiles. Used exclusively with `HillshadeLayer`.
+
+```cpp
+RasterDEMSource(std::string id,
+                variant<std::string, Tileset> urlOrTileset,
+                uint16_t                      tileSize,
+                std::optional<SourceOptions>  options = std::nullopt);
+```
+
+`SourceOptions` allows specifying the raster encoding format via `rasterEncoding` (e.g. `Tileset::RasterEncoding::Mapbox` or `Tileset::RasterEncoding::Terrarium`).
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/raster_dem_source.hpp>
+
+auto source = std::make_unique<mbgl::style::RasterDEMSource>(
+    "terrain",
+    std::string{"https://api.maptiler.com/tiles/terrain-rgb/tiles.json?key=YOUR_KEY"},
+    512
+);
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+<Accordion title="CustomGeometrySource">
+
+**Class:** `mbgl::style::CustomGeometrySource`  
+**Header:** `<mbgl/style/sources/custom_geometry_source.hpp>`
+
+A source whose tile data is supplied by application code through callbacks. Use it to integrate procedural, real-time, or externally paginated data with the tile system.
+
+```cpp
+CustomGeometrySource(std::string id, const CustomGeometrySource::Options& options);
+```
+
+### Options
+
+<ParamField path="fetchTileFunction" type="TileFunction" required>
+  Called when the map needs data for a tile. Signature: `void(const CanonicalTileID&)`. Call `setTileData()` from within or asynchronously.
+</ParamField>
+
+<ParamField path="cancelTileFunction" type="TileFunction">
+  Called when a pending tile request is no longer needed.
+</ParamField>
+
+<ParamField path="zoomRange" type="Range<uint8_t>" default="{0, 18}">
+  Zoom levels for which tiles are requested.
+</ParamField>
+
+<ParamField path="tileOptions.tileSize" type="uint16_t" default="512">
+  Tile size in pixels.
+</ParamField>
+
+<ParamField path="tileOptions.buffer" type="uint16_t" default="128">
+  Tile buffer in pixels.
+</ParamField>
+
+<ParamField path="tileOptions.tolerance" type="double" default="0.375">
+  Simplification tolerance.
+</ParamField>
+
+### Runtime methods
+
+```cpp
+// Supply GeoJSON data for a tile (call from fetchTileFunction or async).
+void setTileData(const CanonicalTileID& tileID, const GeoJSON& data);
+
+// Force a specific tile to be re-fetched.
+void invalidateTile(const CanonicalTileID& tileID);
+
+// Force all tiles intersecting a region to be re-fetched.
+void invalidateRegion(const LatLngBounds& bounds);
+```
+
+**Example**
+
+```cpp
+#include <mbgl/style/sources/custom_geometry_source.hpp>
+
+mbgl::style::CustomGeometrySource::Options opts;
+opts.fetchTileFunction = [&](const mbgl::CanonicalTileID& tileID) {
+    // Compute or fetch GeoJSON for this tile, then:
+    source->setTileData(tileID, computeGeoJSON(tileID));
+};
+opts.cancelTileFunction = [](const mbgl::CanonicalTileID&) {};
+opts.zoomRange = {0, 16};
+
+auto source = std::make_unique<mbgl::style::CustomGeometrySource>("live-data", opts);
+// Keep a raw pointer before moving.
+auto* rawSource = source.get();
+map.getStyle().addSource(std::move(source));
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Common source API
+
+All source types expose the following methods from `mbgl::style::Source`:
+
+```cpp
+std::string                getID() const;
+SourceType                 getType() const;
+std::optional<std::string> getAttribution() const;
+
+bool isVolatile() const noexcept;
+void setVolatile(bool) noexcept;
+
+void                    setPrefetchZoomDelta(std::optional<uint8_t> delta) noexcept;
+std::optional<uint8_t>  getPrefetchZoomDelta() const noexcept;
+
+void     setMinimumTileUpdateInterval(Duration) noexcept;
+Duration getMinimumTileUpdateInterval() const noexcept;
+
+void                    setMaxOverscaleFactorForParentTiles(std::optional<uint8_t>) noexcept;
+std::optional<uint8_t>  getMaxOverscaleFactorForParentTiles() const noexcept;
+```
+
+Type checking and casting:
+
+```cpp
+Source* src = style.getSource("my-source");
+
+if (src->is<GeoJSONSource>()) {
+    auto* geojson = src->as<GeoJSONSource>();
+}
+```

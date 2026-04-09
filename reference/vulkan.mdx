@@ -1,0 +1,63 @@
+---
+title: "Vulkan"
+description: "Vulkan 1.0 rendering backend"
+keywords: ["Vulkan", "rendering", "backend", "Android", "Linux", "macOS", "MoltenVK"]
+---
+
+Vulkan 1.0 is a low-overhead, cross-platform graphics API. On Android it offers better performance on modern devices compared to OpenGL ES. On macOS, Vulkan is available via MoltenVK.
+
+## Platform support
+
+| Platform | Support |
+|----------|---------|
+| Android  | Yes |
+| iOS      | No |
+| Linux    | Yes |
+| Windows  | No |
+| macOS    | Yes (requires MoltenVK) |
+| Node.js  | No |
+| Qt       | No |
+
+<Note>
+On macOS, Vulkan requires [MoltenVK](https://github.com/KhronosGroup/MoltenVK), which translates Vulkan calls to Metal. MoltenVK must be installed before configuring with CMake.
+</Note>
+
+## Enabling Vulkan
+
+### Android
+
+Select the `vulkan` Gradle product flavor:
+
+```bash
+cd platform/android
+
+# Install the test app
+./gradlew :MapLibreAndroidTestApp:installVulkanDebug
+
+# Assemble the library in release mode
+./gradlew :MapLibreAndroid:assembleVulkanRelease
+```
+
+To select it in Android Studio, open the **Build Variants** panel (**View > Tool Windows > Build Variants**) and choose `vulkanDebug` or `vulkanRelease` for each module.
+
+Internally, the flavor sets the CMake argument `-DMLN_WITH_VULKAN=ON`.
+
+### Linux
+
+Use the `linux-vulkan` CMake preset:
+
+```bash
+cmake --preset linux-vulkan
+cmake --build build-linux-vulkan
+```
+
+### macOS
+
+Use the `macos-vulkan` CMake preset:
+
+```bash
+cmake --preset macos-vulkan
+cmake --build build-macos-vulkan
+```
+
+MoltenVK must be installed and discoverable by CMake before configuring.

@@ -1,0 +1,116 @@
+---
+title: "iOS quickstart"
+description: "Integrate MapLibre Native into your iOS app using Swift Package Manager or CocoaPods, with UIKit and SwiftUI examples."
+---
+
+MapLibre Native for iOS embeds interactive, GPU-accelerated vector maps in iOS applications using the [Metal](https://developer.apple.com/metal/) rendering API. This guide covers adding the package to your project and displaying your first map.
+
+<Steps>
+  <Step title="Add the package">
+    Choose your preferred dependency manager.
+
+    <Tabs>
+      <Tab title="Swift Package Manager">
+        In Xcode, go to **File → Add Package Dependencies** and enter the following URL:
+
+        ```
+        https://github.com/maplibre/maplibre-gl-native-distribution
+        ```
+
+        Select the version rule you want (for example, **Up to Next Major Version** starting from `6.25.0`) and add the `MapLibre` product to your target.
+
+        Alternatively, add the dependency directly to your `Package.swift`:
+
+        ```swift Package.swift
+        dependencies: [
+            .package(
+                url: "https://github.com/maplibre/maplibre-gl-native-distribution",
+                from: "6.25.0"
+            )
+        ],
+        targets: [
+            .target(
+                name: "MyApp",
+                dependencies: ["MapLibre"]
+            )
+        ]
+        ```
+      </Tab>
+      <Tab title="CocoaPods">
+        Add `MapLibre` to your `Podfile`:
+
+        ```ruby Podfile
+        pod 'MapLibre', '~> 6.25.0'
+        ```
+
+        Then run:
+
+        ```bash
+        pod install
+        ```
+
+        Open the generated `.xcworkspace` file to work with your project.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Display a map">
+    MapLibre Native iOS uses UIKit. Choose the integration approach that matches your project.
+
+    <Tabs>
+      <Tab title="UIKit">
+        Create a `UIViewController` subclass that conforms to `MLNMapViewDelegate`, add an `MLNMapView` to the view hierarchy, and set the delegate.
+
+        ```swift SimpleMap.swift
+        import MapLibre
+
+        class SimpleMap: UIViewController, MLNMapViewDelegate {
+            var mapView: MLNMapView!
+
+            override func viewDidLoad() {
+                super.viewDidLoad()
+                mapView = MLNMapView(frame: view.bounds)
+                mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                view.addSubview(mapView)
+                mapView.delegate = self
+            }
+
+            func mapView(_: MLNMapView, didFinishLoading _: MLNStyle) {
+            }
+        }
+        ```
+      </Tab>
+      <Tab title="SwiftUI">
+        SwiftUI does not have a native MapLibre view. Wrap `MLNMapView` using `UIViewRepresentable`:
+
+        ```swift SimpleMap.swift
+        import MapLibre
+        import SwiftUI
+
+        struct SimpleMap: UIViewRepresentable {
+            func makeUIView(context _: Context) -> MLNMapView {
+                let mapView = MLNMapView()
+                return mapView
+            }
+
+            func updateUIView(_: MLNMapView, context _: Context) {}
+        }
+        ```
+
+        Then use `SimpleMap()` in your SwiftUI view hierarchy like any other view.
+
+        <Tip>
+          [MapLibreSwiftUI](https://github.com/maplibre/swiftui-dsl) is a community library that provides a declarative SwiftUI API for MapLibre Native iOS, similar in style to SwiftUI's native `Map` view.
+        </Tip>
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Next steps
+
+- [iOS getting started guide](https://maplibre.org/maplibre-native/ios/latest/documentation/maplibre-native-for-ios/gettingstarted)
+- [iOS API documentation](https://maplibre.org/maplibre-native/ios/latest/documentation/maplibre/)
+- [iOS developer guide](https://maplibre.org/maplibre-native/docs/book/platforms/ios/index.html)
+- [Swift Package Index](https://swiftpackageindex.com/maplibre/maplibre-gl-native-distribution)
+- [CocoaPods page](https://cocoapods.org/pods/MapLibre)

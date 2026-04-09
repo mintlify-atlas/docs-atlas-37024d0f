@@ -1,0 +1,182 @@
+---
+title: "Style system"
+description: "How MapLibre Style Specification is implemented"
+---
+
+The style system is the component of MapLibre Native that implements the [MapLibre Style Specification](https://maplibre.org/maplibre-style-spec/). It defines what data to draw, in what order, and how to render it. The `mbgl::style::Style` class is the entry point.
+
+## Style document
+
+A style is a JSON document loaded either from a URL or from a JSON string directly:
+
+```cpp
+style.loadURL("https://example.com/style.json");
+// or
+style.loadJSON(R"({ "version": 8, "layers": [...], "sources": {...} })");
+```
+
+The document has the following top-level fields:
+
+```json
+{
+  "version": 8,
+  "name": "My style",
+  "sprite": "https://example.com/sprite",
+  "glyphs": "https://example.com/fonts/{fontstack}/{range}.pbf",
+  "sources": { ... },
+  "layers": [ ... ]
+}
+```
+
+The `sprite` URL points to a PNG + JSON pair that defines all icons in the style. The `glyphs` URL is a template resolved per font stack and Unicode range when text labels are rendered.
+
+## Layer types
+
+MapLibre Native provides a strongly-typed C++ class for each layer type defined in the style specification. The classes live in `include/mbgl/style/layers/`.
+
+<CardGroup cols={2}>
+  <Card title="Background" icon="square">
+    Fills the entire map canvas with a color or pattern. Always the bottom-most layer.
+  </Card>
+  <Card title="Fill" icon="fill">
+    Renders filled polygons. Used for land, water, buildings, and other area features.
+  </Card>
+  <Card title="Line" icon="minus">
+    Renders stroked lines. Used for roads, rivers, boundaries, and paths.
+  </Card>
+  <Card title="Symbol" icon="font">
+    Renders text labels and point icons with collision detection and placement.
+  </Card>
+  <Card title="Circle" icon="circle">
+    Renders filled circles at point locations. Simpler than Symbol for point data.
+  </Card>
+  <Card title="Raster" icon="image">
+    Renders raster tile imagery such as satellite photos or scanned maps.
+  </Card>
+  <Card title="Heatmap" icon="fire">
+    Renders a density visualization of point data using a color gradient.
+  </Card>
+  <Card title="Hillshade" icon="mountain">
+    Renders terrain shading from an RGB-encoded elevation raster (Mapbox Terrain-RGB or Terrarium).
+  </Card>
+  <Card title="Fill extrusion" icon="building">
+    Renders polygons extruded into 3D shapes. Used for building footprints.
+  </Card>
+  <Card title="Custom layer" icon="code">
+    Executes arbitrary GPU draw calls via a callback interface. Lets you draw anything the GPU API supports.
+  </Card>
+  <Card title="Color relief" icon="palette">
+    Renders a color-mapped visualization of elevation data.
+  </Card>
+  <Card title="Location indicator" icon="location-dot">
+    Renders the user's current location with a configurable puck.
+  </Card>
+</CardGroup>
+
+Each layer type is a separate C++ class with typed property accessors:
+
+```cpp
+#include <mbgl/style/layers/circle_layer.hpp>
+
+auto layer = std::make_unique<mbgl::style::CircleLayer>("my-circles", "my-source");
+layer->setCircleRadius(8.0f);
+layer->setCircleColor(mbgl::Color{1.0f, 0.0f, 0.0f, 1.0f}); // red
+style.addLayer(std::move(layer));
+```
+
+## Source types
+
+Sources provide the geographic data that layers render. Source classes live in `include/mbgl/style/sources/`.
+
+| Source type | Class | Description |
+|---|---|---|
+| Vector tiles | `VectorSource` | Mapbox Vector Tile (MVT) tilesets served over HTTP |
+| Raster tiles | `RasterSource` | PNG/JPEG raster tilesets served over HTTP |
+| Raster DEM | `RasterDEMSource` | Elevation data for hillshade and terrain |
+| GeoJSON | `GeoJSONSource` | Inline or URL-referenced GeoJSON data |
+| Image | `ImageSource` | A single georeferenced raster image |
+| Custom geometry | `CustomGeometrySource` | Geometry generated at runtime by a callback |
+
+```cpp
+#include <mbgl/style/sources/geojson_source.hpp>
+#include <mbgl/util/geo.hpp>
+
+auto source = std::make_unique<mbgl::style::GeoJSONSource>("my-source");
+source->setGeoJSON(mbgl::GeoJSON{/* ... */});
+style.addSource(std::move(source));
+```
+
+## Runtime styling
+
+The runtime styling API lets you modify the active style at any time without reloading it. All changes take effect on the next rendered frame.
+
+**Adding and removing layers:**
+
+```cpp
+// Add a layer before an existing layer (insert below "labels")
+style.addLayer(std::move(layer), "labels");
+
+// Remove a layer by ID
+auto removed = style.removeLayer("my-circles");
+```
+
+**Adding and removing sources:**
+
+```cpp
+style.addSource(std::move(source));
+auto removed = style.removeSource("my-source");
+```
+
+**Modifying layer properties:**
+
+```cpp
+auto* layer = style.getLayer("my-circles");
+if (auto* circles = layer->as<mbgl::style::CircleLayer>()) {
+    circles->setCircleRadius(12.0f);
+}
+```
+
+<Note>
+The runtime styling API is strongly typed. Use `Layer::as<T>()` to downcast a `Layer*` to its concrete type. Returns `nullptr` if the type does not match.
+</Note>
+
+**Transition options** control how property changes are animated:
+
+```cpp
+mbgl::style::TransitionOptions transition;
+transition.duration = mbgl::Milliseconds(300);
+style.setTransitionOptions(transition);
+```
+
+## Expressions language
+
+Data-driven styling is implemented through the [MapLibre expressions language](https://maplibre.org/maplibre-style-spec/expressions/). An expression is a JSON array evaluated at render time against feature properties and the current camera state.
+
+```json
+{
+  "circle-radius": [
+    "interpolate", ["linear"], ["zoom"],
+    10, 2,
+    16, 12
+  ]
+}
+```
+
+This expression interpolates circle radius linearly between zoom levels 10 and 16. Expressions can also read feature properties:
+
+```json
+{
+  "circle-color": [
+    "match", ["get", "category"],
+    "park",  "#00aa00",
+    "water", "#0077ff",
+              "#888888"
+  ]
+}
+```
+
+The expression engine lives in `include/mbgl/style/expression/` and `src/mbgl/style/expression/`. The `expression-test` directory at the repository root contains conformance tests for the expression system.
+
+<Tip>
+Because the layer API is generated from the style specification, the C++ types, JSON names, and the expression system all stay in sync automatically when the spec is updated.
+</Tip>

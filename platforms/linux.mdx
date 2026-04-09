@@ -1,0 +1,188 @@
+---
+title: "Linux"
+description: "Build and run MapLibre Native on Linux with CMake. Covers installing dependencies, building with CMake presets, running mbgl-render, executing render tests, and using the Docker-based workflow."
+---
+
+This guide explains how to get started building and running MapLibre Native on Linux. It focuses on Ubuntu 22.04 or later. The build produces a set of `.a` static libraries for use in other C++ projects, as well as executables for rendering map tile images and running tests.
+
+## Getting the source
+
+Clone the repository with its submodules:
+
+```bash
+git clone --recurse-submodules -j8 https://github.com/maplibre/maplibre-native.git
+cd maplibre-native
+```
+
+## Installing dependencies
+
+```bash
+# Build tools
+apt install build-essential clang cmake ccache ninja-build pkg-config
+
+# System dependencies
+apt install libcurl4-openssl-dev libglfw3-dev libuv1-dev libpng-dev \
+  libicu-dev libjpeg-turbo8-dev libwebp-dev xvfb
+```
+
+`libsqlite3-dev` is optional — when not found, SQLite is used as a vendored dependency.
+
+When using Wayland (the default for the `linux-opengl` preset), also install:
+
+```bash
+apt install libegl1-mesa-dev
+```
+
+## Building with CMake
+
+```bash
+cmake --preset linux-opengl
+cmake --build build-linux-opengl --target mbgl-render
+```
+
+## Running `mbgl-render`
+
+The `mbgl-render` binary renders a map tile image to a PNG file.
+
+```bash
+./build-linux-opengl/bin/mbgl-render \
+  --style https://raw.githubusercontent.com/maplibre/demotiles/gh-pages/style.json \
+  --output out.png
+xdg-open out.png
+```
+
+### Headless rendering
+
+If you run `mbgl-render` inside a Docker container or on a remote headless server, you may see:
+
+```
+Error: Failed to open X display.
+```
+
+Install `xvfb` and `xauth`, then prefix the command with `xvfb-run`:
+
+```bash
+xvfb-run -a ./build-linux-opengl/bin/mbgl-render \
+  --style https://raw.githubusercontent.com/maplibre/demotiles/gh-pages/style.json \
+  --output out.png
+```
+
+### Using your own style and tiles
+
+Download sample tiles and a style for local testing:
+
+```bash
+wget https://github.com/acalcutt/tileserver-gl/releases/download/test_data/zurich_switzerland.mbtiles
+wget https://gist.githubusercontent.com/louwers/d7607270cbd6e3faa05222a09bcb8f7d/raw/4e9532e1760717865df8aeff08f9bcf100f9e8c4/style.json
+```
+
+Update the mbtiles path in the style file:
+
+```bash
+sed -i "s#/path/to#$PWD#" style.json
+```
+
+Then render:
+
+```bash
+./build-linux-opengl/bin/mbgl-render --style style.json --output out.png
+```
+
+## Running render tests
+
+Render tests compare actual rendered PNGs against expected PNGs for simple styles. The test directory structure is:
+
+```
+metrics/
+  integration/
+    render-tests/
+      <style-spec-feature>/
+        <feature-value>/
+          expected.png
+          style.json
+```
+
+After a test run, the directory also contains `actual.png` and `diff.png`. A pixel-difference threshold determines pass/fail.
+
+Run all render tests:
+
+```bash
+./build-linux-opengl/mbgl-render-test-runner \
+  --manifestPath metrics/linux-clang8-release-style.json
+```
+
+Run a single test:
+
+```bash
+./build-linux-opengl/mbgl-render-test-runner \
+  --manifestPath metrics/linux-clang8-release-style.json \
+  --filter "render-tests/fill-visibility/visible"
+```
+
+Results are summarised in an HTML file next to the manifest. For example, running `metrics/linux-clang8-release-style.json` produces a summary at `metrics/linux-clang8-release-style.html`.
+
+## Building with Docker
+
+<Warning>
+Not all platform builds are currently supported in Docker. Docker builds are a work in progress.
+
+You cannot build MapLibre Native with both Docker and the host toolchain at the same time. To switch, clean the repository first:
+
+```bash
+git clean -dxfi -e .idea -e .clwb -e .vscode
+```
+</Warning>
+
+All Docker commands should be run from the repository root.
+
+<Steps>
+  <Step title="Build the Docker image">
+    Build an image with your user and group IDs to keep file permissions correct:
+
+    ```bash
+    docker build \
+      -t maplibre-native-image \
+      --build-arg USER_UID=$(id -u) \
+      --build-arg USER_GID=$(id -g) \
+      -f docker/Dockerfile \
+      docker
+    ```
+  </Step>
+  <Step title="Start an interactive container">
+    ```bash
+    docker run --rm -it \
+      -v "$PWD:/app/" \
+      -v "$PWD/docker/.cache:/home/ubuntu/.cache" \
+      maplibre-native-image
+    ```
+
+    You can now run `cmake`, `bazel`, or any build command inside the container. Downloaded dependencies are cached in `docker/.cache`.
+  </Step>
+  <Step title="Run a single command">
+    To run one specific command without entering an interactive shell:
+
+    ```bash
+    docker run --rm -it \
+      -v "$PWD:/app/" \
+      -v "$PWD/docker/.cache:/home/ubuntu/.cache" \
+      maplibre-native-image cmake --preset linux-opengl
+    ```
+  </Step>
+</Steps>
+
+## Rendering backends
+
+Linux supports the following rendering backends:
+
+| Backend | CMake preset | Status |
+|---|---|---|
+| OpenGL ES | `linux-opengl` | Stable |
+| Vulkan | `linux-vulkan` | Stable |
+| WebGPU | `linux-webgpu-dawn` | Experimental |
+
+To build with a different backend, replace the preset name. For example, to build with Vulkan:
+
+```bash
+cmake --preset linux-vulkan
+cmake --build build-linux-vulkan --target mbgl-render
+```

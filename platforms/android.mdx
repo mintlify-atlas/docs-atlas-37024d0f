@@ -1,0 +1,263 @@
+---
+title: "Android developer guide"
+description: "Build, run, test, and profile MapLibre Native for Android. Covers Android Studio setup, API key configuration, the test app, Kotlin style checking, render tests, instrumented tests, rendering backends, and performance benchmarking."
+---
+
+These instructions are for developers making code-level contributions to MapLibre Native for Android.
+
+## Prerequisites
+
+Install [Android Studio](https://developer.android.com/studio).
+
+## Getting the source
+
+Clone the repository and pull in submodules:
+
+```bash
+git clone git@github.com:maplibre/maplibre-native.git
+cd maplibre-native
+git submodule update --init --recursive
+```
+
+Open the `platform/android` directory in Android Studio to get started.
+
+## Setting an API key
+
+The test application uses MapTiler vector tiles, which require a MapTiler account and API key.
+
+On the first Gradle invocation, Gradle reads the `MLN_API_KEY` environment variable and saves it to `MapLibreAndroidTestApp/src/main/res/values/developer-config.xml`. If the environment variable was not set, edit `developer-config.xml` manually and add your key to the `api_key` resource.
+
+## Running the test app
+
+Run the `MapLibreAndroidTestApp` module configuration and select a device or emulator to deploy on.
+
+## Kotlin style checking
+
+All new code should be written in [Kotlin](https://kotlinlang.org/). Style is enforced with [ktlint](https://pinterest.github.io/ktlint/) via the [kotlinter](https://github.com/jeremymailen/kotlinter-gradle) Gradle plugin.
+
+<CodeGroup>
+
+```bash Check style
+./gradlew checkStyle
+```
+
+```bash Format all files
+./gradlew formatKotlin
+```
+
+</CodeGroup>
+
+## Testing
+
+### Render tests
+
+Run the `androidRenderTest.app` module configuration to execute render tests.
+
+**Filtering tests**
+
+To run a subset of render tests, pass a filter flag in `platform/android/src/test/render_test_runner.cpp`:
+
+```cpp
+std::vector<std::string> arguments = {..., "-f", "background-color/literal"};
+```
+
+**Viewing results**
+
+After the app exits, use the Device Explorer to navigate to `/data/data/org.maplibre.render_test_runner/files`. Open `android-render-test-runner-style.html` in a browser.
+
+To download results from the command line:
+
+```bash
+filename=android-render-test-runner-style.html
+adb shell "run-as org.maplibre.render_test_runner cat files/metrics/$filename" > $filename
+open $filename
+```
+
+For Vulkan results, use:
+
+```bash
+filename=android-vulkan-render-test-runner-style.html
+```
+
+**Updating render tests**
+
+When you change the expected output of a render test, rebuild the test data and push it to the device:
+
+```bash
+tar chf render-test/android/app/src/main/assets/data.zip \
+  --format=zip \
+  --files-from=render-test/android/app/src/main/assets/to_zip.txt
+
+adb push render-test/android/app/src/main/assets/data.zip /data/local/tmp/data.zip
+adb shell chmod 777 /data/local/tmp/data.zip
+adb shell "run-as org.maplibre.render_test_runner unzip -o /data/local/tmp/data.zip -d files"
+```
+
+To pull `actual.png` and save it as an alternate expected image:
+
+```bash
+render_test_name=tile-lod/zoom-shift
+adb exec-out run-as org.maplibre.render_test_runner \
+  cat files/metrics/integration/render-tests/$render_test_name/actual.png \
+  > metrics/integration/render-tests/$render_test_name/expected-android.png
+```
+
+### Instrumentation tests
+
+Choose the **Instrumentation Tests** run configuration in Android Studio. Your device must stay unlocked for the duration of the tests.
+
+### C++ unit tests
+
+A separate Gradle project in `test/android` runs the C++ unit tests. Open it in Android Studio and run the tests on a device or simulator.
+
+To run a specific subset, modify the `--gtest_filter` flag in `platform/android/src/test/test_runner.cpp`. See the [GoogleTest documentation](https://google.github.io/googletest/advanced.html#running-a-subset-of-the-tests) for filter syntax.
+
+**CI results on AWS Device Farm**
+
+Instrumentation and C++ unit tests run on AWS Device Farm. Results are accessible at:
+
+```
+https://us-west-2.console.aws.amazon.com/devicefarm/home?region=us-east-1#/mobile/projects/20687d72-0e46-403e-8f03-0941850665bc/runs
+```
+
+Use alias `maplibre`, username `maplibre`, password `maplibre` (read-only account).
+
+## Rendering backends
+
+The rendering backend is selected at build time through Gradle product flavors.
+
+| Flavor | Backend | Status | Notes |
+|---|---|---|---|
+| `opengl` | OpenGL ES | Stable | Default; widest device compatibility |
+| `vulkan` | Vulkan | Stable | Better performance on modern devices |
+| `webgpuDawn` | WebGPU (Dawn) | Experimental | Uses Vulkan internally |
+| `webgpuWgpu` | WebGPU (wgpu-native) | Experimental | Uses Vulkan internally; arm64-v8a only |
+
+### Building with a specific backend
+
+The flavor name is part of the Gradle task. From the `platform/android` directory:
+
+```bash
+# OpenGL ES (default)
+./gradlew :MapLibreAndroidTestApp:installOpenglDebug
+
+# Vulkan
+./gradlew :MapLibreAndroidTestApp:installVulkanDebug
+
+# WebGPU (Dawn)
+./gradlew :MapLibreAndroidTestApp:installWebgpuDawnDebug
+
+# WebGPU (wgpu-native)
+./gradlew :MapLibreAndroidTestApp:installWebgpuWgpuDebug
+```
+
+The same pattern applies to the library module:
+
+```bash
+./gradlew :MapLibreAndroid:assembleVulkanRelease
+```
+
+### Selecting a backend in Android Studio
+
+Use the **Build Variants** panel (**View > Tool Windows > Build Variants**) to pick the renderer flavor. Each module shows a dropdown combining flavor and build type, for example `vulkanDebug` or `openglRelease`.
+
+### How it works
+
+Each flavor sets different CMake arguments at configuration time:
+
+- `opengl`: `-DMLN_WITH_OPENGL=ON`
+- `vulkan`: `-DMLN_WITH_VULKAN=ON`
+- `webgpuDawn`: `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_DAWN=ON`
+- `webgpuWgpu`: `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_WGPU=ON`
+
+Only one backend is active per build. Renderer-specific Java code lives in `src/opengl/`, `src/vulkan/`, or `src/webgpu/` source sets.
+
+## Benchmarking
+
+A rendering performance benchmark is implemented in `BenchMarkActivity.kt`.
+
+### Configuring styles
+
+Benchmark styles are hardcoded but can be overridden in `developer-config.xml`:
+
+```xml
+<array name="benchmark_style_names">
+  <item>Americana</item>
+</array>
+<array name="benchmark_style_urls">
+  <item>https://americanamap.org/style.json</item>
+</array>
+```
+
+### Retrieving results
+
+Results are logged to the console as they arrive. After the benchmark finishes, pull `benchmark_results.json` from the device:
+
+```bash
+adb shell "run-as org.maplibre.android.testapp cat files/benchmark_results.json" \
+  > benchmark_results.json
+```
+
+The JSON file has the following structure:
+
+```json
+{
+  "results": [
+    {
+      "styleName": "AWS Open Data Standard Light",
+      "syncRendering": true,
+      "thermalState": 0,
+      "fps": 34.70237085812839,
+      "avgEncodingTime": 19.818289053808947,
+      "avgRenderingTime": 7.7432454899654255,
+      "low1pEncodingTime": 91.72538138784371,
+      "low1pRenderingTime": 26.573758581509203
+    }
+  ],
+  "deviceManufacturer": "samsung",
+  "model": "SM-G973F",
+  "renderer": "drawable",
+  "debugBuild": true,
+  "gitRevision": "fc95b79880223e34c2ce80339f698d095e3d63cd",
+  "timestamp": 1736454325393
+}
+```
+
+| Key | Description |
+|---|---|
+| `styleName` | Name of the style being benchmarked |
+| `syncRendering` | Whether synchronous rendering was used |
+| `thermalState` | Thermal state of the device during the benchmark |
+| `fps` | Average frames per second |
+| `avgEncodingTime` | Average encoding time in milliseconds |
+| `avgRenderingTime` | Average rendering time in milliseconds |
+| `low1pEncodingTime` | 1st-percentile (worst-case) encoding time in milliseconds |
+| `low1pRenderingTime` | 1st-percentile (worst-case) rendering time in milliseconds |
+| `renderer` | Renderer used: `drawable` (OpenGL ES), `vulkan`, or `legacy` |
+| `debugBuild` | Whether the build was a debug build |
+| `gitRevision` | Git commit hash |
+| `timestamp` | Unix timestamp when the benchmark ran |
+
+### Continuous benchmarking
+
+The Android benchmark runs on every merge to `main`. Results per commit are available at:
+
+```
+https://maplibre-native.s3.eu-central-1.amazonaws.com/index.html#android-benchmark-render/
+```
+
+Or pull them from the public S3 bucket:
+
+```bash
+aws s3 sync s3://maplibre-native/android-benchmark-render/ .
+```
+
+To trigger a benchmark run from a pull request comment, add:
+
+```
+!benchmark android
+```
+
+## Profiling
+
+See the [Tracy profiling guide](https://maplibre.org/maplibre-native/docs/book/profiling/tracy-profiling.html) to learn how to use Tracy for performance profiling on Android.

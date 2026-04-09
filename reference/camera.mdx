@@ -1,0 +1,334 @@
+---
+title: "Camera"
+description: "Camera control and animation in MapLibre Native — CameraOptions, AnimationOptions, FreeCameraOptions, and animation methods."
+keywords: ["camera", "mbgl", "C++", "CameraOptions", "AnimationOptions", "FreeCameraOptions", "flyTo", "easeTo", "jumpTo"]
+---
+
+The camera defines the viewpoint of the map. MapLibre Native exposes camera control through three structs — `CameraOptions`, `AnimationOptions`, and `FreeCameraOptions` — and a set of animation methods on `mbgl::Map`.
+
+All types are in the `mbgl` namespace. Include `<mbgl/map/camera.hpp>`.
+
+---
+
+## CameraOptions
+
+Describes a map viewpoint. All fields are optional; unset fields keep their current value.
+
+```cpp
+struct CameraOptions {
+    std::optional<LatLng>          center;
+    std::optional<double>          centerAltitude;
+    std::optional<EdgeInsets>      padding;
+    std::optional<ScreenCoordinate> anchor;
+    std::optional<double>          zoom;
+    std::optional<double>          bearing;
+    std::optional<double>          pitch;
+    std::optional<double>          roll;
+    std::optional<double>          fov;
+};
+```
+
+<ParamField path="center" type="optional<LatLng>">
+  Geographic coordinate at the center of the map. Mutually exclusive with `anchor`; `center` takes precedence when both are set.
+</ParamField>
+
+<ParamField path="centerAltitude" type="optional<double>">
+  Altitude of the map center in meters above sea level.
+</ParamField>
+
+<ParamField path="padding" type="optional<EdgeInsets>">
+  Insets (top, left, bottom, right in pixels) that shift the effective center. Useful when UI chrome partially overlaps the map.
+</ParamField>
+
+<ParamField path="anchor" type="optional<ScreenCoordinate>">
+  Screen-space point (pixels from top-left) used as the reference for `zoom` and `bearing`. Ignored when `center` is also set.
+</ParamField>
+
+<ParamField path="zoom" type="optional<double>">
+  Zero-based zoom level. Clamped to the source's min/max zoom range.
+</ParamField>
+
+<ParamField path="bearing" type="optional<double>">
+  Bearing in degrees from true north. Wrapped to `[0, 360)`.
+</ParamField>
+
+<ParamField path="pitch" type="optional<double>">
+  Tilt toward the horizon in degrees. `0` is a top-down 2D view; higher values tilt toward the horizon.
+</ParamField>
+
+<ParamField path="roll" type="optional<double>">
+  Camera roll in degrees.
+</ParamField>
+
+<ParamField path="fov" type="optional<double>">
+  Vertical field of view in degrees.
+</ParamField>
+
+`CameraOptions` supports a fluent builder API:
+
+```cpp
+mbgl::CameraOptions camera;
+camera.withCenter(mbgl::LatLng{52.52, 13.405})
+      .withZoom(12.0)
+      .withBearing(45.0)
+      .withPitch(30.0);
+```
+
+---
+
+## AnimationOptions
+
+Controls the timing of animated camera transitions. All fields are optional.
+
+```cpp
+struct AnimationOptions {
+    std::optional<Duration>                duration;
+    std::optional<double>                  velocity;
+    std::optional<double>                  minZoom;
+    std::optional<mbgl::util::UnitBezier>  easing;
+    std::function<void(double)>            transitionFrameFn;
+    std::function<void()>                  transitionFinishFn;
+};
+```
+
+<ParamField path="duration" type="optional<Duration>">
+  Total animation time. `Duration` is `std::chrono::duration`. Example: `mbgl::Milliseconds(1000)`.
+</ParamField>
+
+<ParamField path="velocity" type="optional<double>">
+  Average velocity in screenfuls per second for `flyTo()` transitions. Ignored by `easeTo()`. A screenful is the visible pixel span, not a fixed physical distance.
+</ParamField>
+
+<ParamField path="minZoom" type="optional<double>">
+  Peak zoom level at the apex of a `flyTo()` arc. Lower values create a more dramatic pullout effect.
+</ParamField>
+
+<ParamField path="easing" type="optional<UnitBezier>">
+  Cubic Bézier easing curve. Construct with four control point values: `mbgl::util::UnitBezier{x1, y1, x2, y2}`. The default is linear.
+</ParamField>
+
+<ParamField path="transitionFrameFn" type="function<void(double)>">
+  Called each frame (except the last) with the elapsed fraction `[0, 1)`. Use to drive external animations in sync with the camera.
+</ParamField>
+
+<ParamField path="transitionFinishFn" type="function<void()>">
+  Called once on the last frame of the transition, just before the final screen update.
+</ParamField>
+
+```cpp
+// Convenience constructor for a fixed duration.
+mbgl::AnimationOptions anim{mbgl::Milliseconds(800)};
+anim.easing = mbgl::util::UnitBezier{0.42, 0.0, 0.58, 1.0}; // ease-in-out
+anim.transitionFinishFn = []{ /* animation complete */ };
+```
+
+---
+
+## FreeCameraOptions
+
+Provides direct access to the underlying camera entity using a 3D position and orientation quaternion. Fully interchangeable with `CameraOptions`.
+
+```cpp
+struct FreeCameraOptions {
+    std::optional<vec3> position;    // web mercator position
+    std::optional<vec4> orientation; // unit quaternion [x, y, z, w]
+};
+```
+
+<ParamField path="position" type="optional<vec3>">
+  Camera position in modified web mercator space. `[0, 0, 0]` is the north-west corner of the world; `[1, 1, 0]` is the south-east corner. The Z component encodes altitude, from which zoom is derived automatically.
+</ParamField>
+
+<ParamField path="orientation" type="optional<vec4>">
+  Camera orientation as a unit quaternion `[x, y, z, w]`. Default forward direction is `[0, 0, -1]` (up the negative Z axis); default up is `[0, -1, 0]` (aligned with north).
+</ParamField>
+
+<Warning>
+Orientations that result in an upside-down camera or a zero-length quaternion are discarded. Pitch is subject to the same upper limit as in `CameraOptions`.
+</Warning>
+
+### Helper methods
+
+```cpp
+// Set position from a geographic coordinate and altitude in meters.
+void setLocation(const LatLngAltitude& location) noexcept;
+
+// Read position as a geographic coordinate and altitude in meters.
+std::optional<LatLngAltitude> getLocation() const noexcept;
+
+// Orient the camera to look at a map point, with an optional up vector.
+void lookAtPoint(const LatLng& location,
+                 const std::optional<vec3>& upVector = std::nullopt) noexcept;
+
+// Orient the camera using Euler angles (degrees).
+void setRollPitchBearing(double roll, double pitch, double bearing) noexcept;
+```
+
+**Example**
+
+```cpp
+mbgl::FreeCameraOptions freeCamera = map.getFreeCameraOptions();
+freeCamera.setLocation({{48.858, 2.294}, 1500.0}); // Eiffel Tower, 1500 m altitude
+freeCamera.lookAtPoint({48.853, 2.349});            // look toward Notre-Dame
+map.setFreeCameraOptions(freeCamera);
+```
+
+---
+
+## Camera animation methods
+
+### jumpTo — instant
+
+```cpp
+void jumpTo(const CameraOptions& camera);
+```
+
+Moves the camera to `camera` with no animation. Any in-progress transition is cancelled.
+
+```cpp
+map.jumpTo(mbgl::CameraOptions{}
+    .withCenter(mbgl::LatLng{40.7128, -74.0060})
+    .withZoom(10.0));
+```
+
+### easeTo — linear path
+
+```cpp
+void easeTo(const CameraOptions& camera, const AnimationOptions& animation);
+```
+
+Transitions the camera to `camera` along a straight-line path with a configurable easing curve. Use for UI-driven panning and zooming where a predictable path is important.
+
+```cpp
+mbgl::AnimationOptions anim{mbgl::Milliseconds(500)};
+map.easeTo(
+    mbgl::CameraOptions{}.withZoom(14.0),
+    anim
+);
+```
+
+### flyTo — arc path
+
+```cpp
+void flyTo(const CameraOptions& camera, const AnimationOptions& animation);
+```
+
+Transitions along a high-arc flight path that pulls out and zooms back in. Best for long-distance navigations where context is useful.
+
+```cpp
+mbgl::AnimationOptions anim;
+anim.duration = mbgl::Milliseconds(2000);
+anim.minZoom  = 4.0; // pull out to zoom 4 at the apex
+
+map.flyTo(
+    mbgl::CameraOptions{}
+        .withCenter(mbgl::LatLng{35.6762, 139.6503})
+        .withZoom(12.0),
+    anim
+);
+```
+
+<Tip>
+Omit `duration` and set `velocity` instead to let the library compute a duration based on the distance of the transition.
+</Tip>
+
+---
+
+## Fitting the camera to content
+
+Compute a `CameraOptions` that shows a geographic area within the current viewport, then pass it to an animation method.
+
+```cpp
+// Fit to a bounding box.
+mbgl::LatLngBounds bounds = mbgl::LatLngBounds::hull(
+    {47.3, 5.9}, {55.0, 15.0}); // roughly Germany
+
+mbgl::EdgeInsets padding{60, 60, 60, 60}; // pixels
+
+mbgl::CameraOptions camera = map.cameraForLatLngBounds(bounds, padding);
+map.easeTo(camera, mbgl::AnimationOptions{mbgl::Milliseconds(600)});
+```
+
+```cpp
+// Fit to a set of points.
+std::vector<mbgl::LatLng> points = {
+    {51.505, -0.09}, {48.858, 2.294}, {41.903, 12.496}
+};
+mbgl::CameraOptions camera = map.cameraForLatLngs(points, {40, 40, 40, 40});
+map.jumpTo(camera);
+```
+
+```cpp
+// Fit to arbitrary geometry.
+mbgl::Geometry<double> geom = /* ... */;
+mbgl::CameraOptions camera  = map.cameraForGeometry(geom, {20, 20, 20, 20});
+map.jumpTo(camera);
+```
+
+---
+
+## BoundOptions
+
+Constrain camera movement to a region and zoom range.
+
+```cpp
+void         setBounds(const BoundOptions& options);
+BoundOptions getBounds() const;
+```
+
+`BoundOptions` fields:
+
+<ParamField path="bounds" type="optional<LatLngBounds>">
+  Geographic bounding box the camera cannot move outside of.
+</ParamField>
+
+<ParamField path="minZoom" type="optional<double>">
+  Minimum allowed zoom level.
+</ParamField>
+
+<ParamField path="maxZoom" type="optional<double>">
+  Maximum allowed zoom level.
+</ParamField>
+
+<ParamField path="minPitch" type="optional<double>">
+  Minimum allowed pitch in degrees.
+</ParamField>
+
+<ParamField path="maxPitch" type="optional<double>">
+  Maximum allowed pitch in degrees.
+</ParamField>
+
+```cpp
+mbgl::BoundOptions bounds;
+bounds.bounds   = mbgl::LatLngBounds::hull({47.3, 5.9}, {55.0, 15.0});
+bounds.minZoom  = 5.0;
+bounds.maxZoom  = 18.0;
+map.setBounds(bounds);
+```
+
+---
+
+## Querying current state
+
+```cpp
+CameraOptions getCameraOptions(
+    const std::optional<EdgeInsets>& padding = std::nullopt) const;
+```
+
+Returns the current camera state. When `padding` is provided, the returned `center` accounts for the insets.
+
+```cpp
+FreeCameraOptions getFreeCameraOptions() const;
+```
+
+Returns the current free-camera state.
+
+```cpp
+// Transition predicates.
+bool isGestureInProgress() const;
+bool isRotating() const;
+bool isScaling() const;
+bool isPanning() const;
+
+void cancelTransitions();
+```

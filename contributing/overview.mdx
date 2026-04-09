@@ -1,0 +1,64 @@
+---
+title: "Contributing to MapLibre Native"
+description: "How to contribute code, documentation, and ideas to the MapLibre Native project."
+---
+
+MapLibre Native is an open-source project and contributions are welcome. This page covers the basics of getting started, submitting pull requests, and engaging with the community.
+
+## Fork and clone
+
+Fork the repository on GitHub, then clone your fork with submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/maplibre/maplibre-native.git
+```
+
+<Note>
+The `--recurse-submodules` flag is required. MapLibre Native uses Git submodules for several dependencies. Cloning without this flag will result in a broken build.
+</Note>
+
+## Submitting pull requests
+
+Before opening a pull request:
+
+1. Check that no existing [pull request](https://github.com/maplibre/maplibre-native/pulls) or [issue](https://github.com/maplibre/maplibre-native/issues) already covers your contribution.
+2. Familiarize yourself with the build and test process for your target platform.
+3. If your change affects behavior that platform developers should know about, update the **main** section of the relevant `CHANGELOG.md`.
+
+## Pre-commit hooks
+
+Install [pre-commit](https://pre-commit.com/), then run:
+
+```bash
+pre-commit install
+```
+
+This installs the hooks defined in `.pre-commit-config.yaml`. They run automatically on every commit and check formatting, linting, and other code quality rules.
+
+<Tip>
+Run `pre-commit run --all-files` to check all files before your first commit if you are working in an existing branch.
+</Tip>
+
+## Good first issues
+
+Looking for somewhere to start? The [good first issue](https://github.com/maplibre/maplibre-native/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) label on GitHub lists tasks well-suited for new contributors.
+
+## Community
+
+Join the **#maplibre-native** channel on the [OSMUS Slack](https://osmus.slack.com) to ask questions, discuss ideas, and connect with other contributors.
+
+---
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Building from source" icon="hammer" href="/contributing/building">
+    Set up your build environment and compile MapLibre Native for your target platform.
+  </Card>
+  <Card title="Testing" icon="flask-conical" href="/contributing/testing">
+    Run unit tests, render tests, and platform-specific test suites.
+  </Card>
+  <Card title="Design proposals" icon="file-pen" href="/contributing/design-proposals">
+    Propose and discuss substantial changes before implementation begins.
+  </Card>
+</CardGroup>

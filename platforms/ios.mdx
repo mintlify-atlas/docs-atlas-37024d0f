@@ -1,0 +1,201 @@
+---
+title: "iOS developer guide"
+description: "Build and run MapLibre Native on iOS using Bazel and Xcode, or via CMake. Covers Xcode project generation, simulator builds, XCFramework distribution, rendering backends, and troubleshooting."
+---
+
+These instructions are for developers making code-level contributions to MapLibre Native for iOS.
+
+## Prerequisites
+
+- [Xcode](https://developer.apple.com/xcode/) installed
+- [bazelisk](https://github.com/bazelbuild/bazelisk) installed (a wrapper that ensures the Bazel version in `.bazelversion` is used)
+
+Install bazelisk via Homebrew:
+
+```bash
+brew install bazelisk
+```
+
+## Getting the source
+
+```bash
+git clone git@github.com:maplibre/maplibre-native.git
+cd maplibre-native
+git submodule update --init --recursive
+```
+
+## Creating `config.bzl`
+
+Configure Bazel by copying the example config:
+
+```bash
+cp platform/darwin/bazel/example_config.bzl platform/darwin/bazel/config.bzl
+```
+
+Edit `config.bzl` and set the following values:
+
+- **`BUNDLE_ID_PREFIX`** — a unique reverse-domain identifier (ideally a domain you own, for example `com.yourcompany`).
+- **Team ID** — the Team ID of your Apple Developer account (paid or unpaid). Find it at [developer.apple.com/account](https://developer.apple.com/account) by scrolling down to the membership section.
+
+You can leave `APPLE_MOBILE_PROVISIONING_PROFILE_NAME` unchanged for now.
+
+<Note>
+If you do not yet have a developer account, continue with this guide and let Xcode generate a provisioning profile. Update the Team ID once a certificate is generated.
+</Note>
+
+## Creating the Xcode project
+
+<Steps>
+  <Step title="Generate the Xcode project with Bazel">
+    ```bash
+    bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+    ```
+  </Step>
+  <Step title="Open the project in Xcode">
+    ```bash
+    xed platform/ios/MapLibre.xcodeproj
+    ```
+  </Step>
+  <Step title="Verify signing">
+    In Xcode, click **MapLibre** in the left sidebar, select **App** under Targets, then open the **Signing & Capabilities** tab. Confirm that no errors are shown.
+  </Step>
+  <Step title="Run the app">
+    Try running the example app in the simulator and on a device to confirm your setup is working.
+  </Step>
+</Steps>
+
+<Warning>
+The Bazel configuration files are the source of truth for the build configuration. All changes to build settings must be made through Bazel, not directly in Xcode.
+</Warning>
+
+## Running from the command line
+
+You can build and run the test app in a simulator without opening Xcode:
+
+```bash
+bazel run //platform/ios:App --//:renderer=metal
+```
+
+## CMake
+
+It is also possible to generate an Xcode project using CMake. As of February 2025, the `mbgl-core`, `ios-sdk-static`, and `app` (Objective-C development app) targets are supported.
+
+```bash
+cmake --preset ios-metal -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+xed build-ios/MapLibre\ Native.xcodeproj
+```
+
+## Distribution
+
+MapLibre iOS is distributed as an XCFramework via the [maplibre/maplibre-gl-native-distribution](https://github.com/maplibre/maplibre-gl-native-distribution) repository.
+
+To build an XCFramework, refer to the [`ios-ci.yml`](https://github.com/maplibre/maplibre-native/blob/main/.github/workflows/ios-ci.yml) workflow. The production build command is:
+
+```bash
+bazel build --compilation_mode=opt --features=dead_strip,thin_lto --objc_enable_binary_stripping \
+  --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapLibre.dynamic \
+  --embed_label=maplibre_ios_"$(cat VERSION)"
+```
+
+## Rendering backends
+
+MapLibre Native for iOS supports multiple rendering backends, selected at build time.
+
+<Tabs>
+  <Tab title="Bazel">
+    Pass `--//:renderer=<backend>` to the `bazel run` or `bazel build` command:
+
+    ```bash
+    # Metal (default, recommended for production)
+    bazel run //platform/ios:App --//:renderer=metal
+
+    # WebGPU (experimental)
+    bazel run //platform/ios:App --//:renderer=webgpu
+    ```
+  </Tab>
+  <Tab title="CMake">
+    Use the CMake preset for the desired backend. Each preset generates an Xcode project in its own build directory:
+
+    ```bash
+    # Metal (default)
+    cmake --preset ios-metal -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+    xed build-ios/MapLibre\ Native.xcodeproj
+
+    # WebGPU (Dawn)
+    cmake --preset ios-webgpu-dawn -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+    xed build-ios-webgpu-dawn/MapLibre\ Native.xcodeproj
+
+    # WebGPU (wgpu-native)
+    cmake --preset ios-webgpu-wgpu -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+    xed build-ios-webgpu-wgpu/MapLibre\ Native.xcodeproj
+    ```
+
+    To build from the command line after configuring:
+
+    ```bash
+    cmake --build build-ios-webgpu-wgpu -- -sdk iphonesimulator -arch arm64
+    ```
+  </Tab>
+</Tabs>
+
+### Available backends
+
+| Preset | Backend | Status | Notes |
+|---|---|---|---|
+| `ios-metal` | Metal | Stable | Default; recommended for production |
+| `ios-webgpu-dawn` | WebGPU (Dawn) | Experimental | Uses Metal internally |
+| `ios-webgpu-wgpu` | WebGPU (wgpu-native) | Experimental | Uses Metal internally |
+
+### How it works
+
+Each preset passes different CMake variables:
+
+- `ios-metal`: `-DMLN_WITH_METAL=ON`
+- `ios-webgpu-dawn`: `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_DAWN=ON`
+- `ios-webgpu-wgpu`: `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_WGPU=ON`
+
+Only one backend is active per build. The Objective-C layer is shared across backends, with renderer-specific code selected at compile time via `#if MLN_WEBGPU_IMPL_DAWN` / `#elif MLN_WEBGPU_IMPL_WGPU` conditionals in `MLNMapView+WebGPU.mm`.
+
+## Testing
+
+### Unit tests (XCTest)
+
+Run tests for the `ios_test` target in Xcode, or from the command line:
+
+```bash
+bazel test //platform/ios/test:ios_test --test_output=errors --//:renderer=metal
+```
+
+### Render tests
+
+Run the `RenderTest` target from Xcode.
+
+When running in a simulator, find the data directory of the render test app:
+
+```bash
+# Check for the 'DataContainer' of the app with *.maplibre.RenderTestApp id
+xcrun simctl listapps booted
+```
+
+This allows you to inspect test results and copy generated `actual.png` files back into the source directory as new expectations.
+
+### C++ unit tests
+
+Run tests from the `CppUnitTests` target in Xcode to execute the C++ unit tests on iOS.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Provisioning profile KeyError">
+    If you see a Python `KeyError` when processing provisioning profiles, you likely have expired or corrupted profiles.
+
+    Check `~/Library/MobileDevice/Provisioning\ Profiles` and remove any expired profiles. Removing all profiles in that directory can also resolve some issues.
+  </Accordion>
+  <Accordion title="Cleaning the Bazel environment">
+    You should almost never need to do this, but some problems can be resolved with a full Bazel clean:
+
+    ```bash
+    bazel clean --expunge
+    ```
+  </Accordion>
+</AccordionGroup>

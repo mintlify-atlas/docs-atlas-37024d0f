@@ -1,0 +1,286 @@
+---
+title: "mbgl::Map"
+description: "The primary map control class in MapLibre Native."
+keywords: ["map", "mbgl", "C++", "API", "camera", "annotations", "debug"]
+---
+
+`mbgl::Map` is the top-level object that owns the map lifecycle. It manages style loading, camera state, annotation data, tile fetching, and rendering coordination. All interactions with the map — from displaying a style to animating the camera — go through this class.
+
+<Note>
+`mbgl::Map` is non-copyable. Ownership should be held through a single instance, typically as a member of your renderer host object.
+</Note>
+
+## Constructor
+
+```cpp
+explicit Map(RendererFrontend&           frontend,
+             MapObserver&                observer,
+             const MapOptions&           mapOptions,
+             const ResourceOptions&      resourceOptions,
+             const ClientOptions&        clientOptions = ClientOptions(),
+             const util::ActionJournalOptions& journalOptions = {});
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `frontend` | Platform-specific renderer front end that bridges the map to the GPU backend. |
+| `observer` | Receives lifecycle callbacks for loading, rendering, camera, and style events. Pass `MapObserver::nullObserver()` to opt out. |
+| `mapOptions` | Initial rendering mode, constrain mode, viewport mode, size, and pixel ratio. |
+| `resourceOptions` | Base URL, access token, asset path, and caching options for network and file resources. |
+| `clientOptions` | Optional client identification metadata. |
+| `journalOptions` | Optional action journal for replay and debugging. |
+
+---
+
+## Style
+
+```cpp
+style::Style& getStyle();
+const style::Style& getStyle() const;
+
+void setStyle(std::unique_ptr<style::Style>);
+```
+
+`getStyle()` returns a mutable reference to the currently loaded style. Use it to add or remove layers, sources, and images at runtime.
+
+`setStyle()` replaces the active style. The previous style is destroyed and all tiles are discarded.
+
+<Tip>
+To load a style from a URL or JSON string, call `getStyle().loadURL(...)` or `getStyle().loadJSON(...)` rather than constructing a new `Style` object.
+</Tip>
+
+---
+
+## Rendering
+
+```cpp
+using StillImageCallback = std::function<void(std::exception_ptr)>;
+
+void renderStill(StillImageCallback callback);
+void renderStill(const CameraOptions&, MapDebugOptions, StillImageCallback callback);
+
+void triggerRepaint();
+```
+
+`renderStill()` renders one frame off-screen. The callback fires on the render thread once all resources are loaded and a complete render has occurred. The overload that accepts `CameraOptions` positions the camera before rendering.
+
+`triggerRepaint()` requests a new frame in continuous rendering mode.
+
+---
+
+## Camera
+
+### Instant positioning
+
+```cpp
+void jumpTo(const CameraOptions& camera);
+```
+
+Moves the camera to `camera` with no animation.
+
+### Animated transitions
+
+```cpp
+void easeTo(const CameraOptions& camera, const AnimationOptions& animation);
+void flyTo(const CameraOptions& camera, const AnimationOptions& animation);
+```
+
+`easeTo()` transitions between viewpoints along a straight line with a configurable easing curve.
+
+`flyTo()` transitions along a high-arc flight path that pulls out and zooms back in, suitable for large geographic jumps.
+
+### Gesture helpers
+
+```cpp
+void moveBy(const ScreenCoordinate& offset, const AnimationOptions& animation = {});
+void scaleBy(double scale, const std::optional<ScreenCoordinate>& anchor, const AnimationOptions& animation = {});
+void pitchBy(double pitch, const AnimationOptions& animation = {});
+void rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& animation = {});
+```
+
+These helpers apply a relative change to the current camera state — useful when implementing touch gesture handlers.
+
+### State query
+
+```cpp
+CameraOptions getCameraOptions(const std::optional<EdgeInsets>& padding = std::nullopt) const;
+```
+
+Returns the current camera state. When `padding` is provided the returned `center` accounts for the insets.
+
+### Transition state
+
+```cpp
+void cancelTransitions();
+void setGestureInProgress(bool);
+bool isGestureInProgress() const;
+bool isRotating() const;
+bool isScaling() const;
+bool isPanning() const;
+```
+
+---
+
+## Camera query methods
+
+Compute a `CameraOptions` that fits a geographic area into the current viewport.
+
+```cpp
+CameraOptions cameraForLatLngBounds(
+    const LatLngBounds& bounds,
+    const EdgeInsets&   padding,
+    const std::optional<double>& bearing = std::nullopt,
+    const std::optional<double>& pitch   = std::nullopt) const;
+
+CameraOptions cameraForLatLngs(
+    const std::vector<LatLng>& latLngs,
+    const EdgeInsets&          padding,
+    const std::optional<double>& bearing = std::nullopt,
+    const std::optional<double>& pitch   = std::nullopt) const;
+
+CameraOptions cameraForGeometry(
+    const Geometry<double>& geometry,
+    const EdgeInsets&       padding,
+    const std::optional<double>& bearing = std::nullopt,
+    const std::optional<double>& pitch   = std::nullopt) const;
+```
+
+All three methods return a `CameraOptions` with `center` and `zoom` set so that the given area fits within the viewport after `padding` insets are applied. They do not move the camera; pass the result to `jumpTo()` or `easeTo()`.
+
+```cpp
+LatLngBounds latLngBoundsForCamera(const CameraOptions&) const;
+LatLngBounds latLngBoundsForCameraUnwrapped(const CameraOptions&) const;
+```
+
+The inverse: compute the geographic bounds visible for a given `CameraOptions`.
+
+---
+
+## Projection
+
+```cpp
+ScreenCoordinate pixelForLatLng(const LatLng& latLng) const;
+LatLng           latLngForPixel(const ScreenCoordinate& pixel) const;
+
+std::vector<ScreenCoordinate> pixelsForLatLngs(const std::vector<LatLng>&) const;
+std::vector<LatLng>           latLngsForPixels(const std::vector<ScreenCoordinate>&) const;
+```
+
+Convert between geographic coordinates and screen-space pixels. Pixel coordinates are relative to the top-left corner of the map view.
+
+---
+
+## Bounds
+
+```cpp
+void        setBounds(const BoundOptions& options);
+BoundOptions getBounds() const;
+```
+
+`BoundOptions` lets you constrain the camera with a `LatLngBounds` and enforce minimum/maximum zoom levels. All optional fields are populated in the value returned by `getBounds()`.
+
+---
+
+## Free camera
+
+```cpp
+void              setFreeCameraOptions(const FreeCameraOptions& camera);
+FreeCameraOptions getFreeCameraOptions() const;
+```
+
+Provides direct access to position and orientation as a web-mercator position vector and a unit quaternion. See [Camera](/reference/camera) for `FreeCameraOptions` field documentation.
+
+<Warning>
+The free-camera state must be representable by a `CameraOptions` equivalent. Orientations that result in an upside-down camera or a zero-length quaternion are discarded.
+</Warning>
+
+---
+
+## Annotations
+
+```cpp
+void        addAnnotationImage(std::unique_ptr<style::Image>);
+void        removeAnnotationImage(const std::string& imageID);
+double      getTopOffsetPixelsForAnnotationImage(const std::string& imageID);
+
+AnnotationID addAnnotation(const Annotation& annotation);
+void         updateAnnotation(AnnotationID, const Annotation&);
+void         removeAnnotation(AnnotationID);
+```
+
+Annotations are lightweight point, line, or fill overlays managed outside of the style system. Use `addAnnotationImage()` to register sprite images before referencing them in symbol annotations.
+
+---
+
+## Tile LOD controls
+
+Reduce tile request counts by allowing lower-resolution tiles at a distance from the camera. Useful when the camera pitch is high.
+
+```cpp
+void    setTileLodMinRadius(double radius);
+double  getTileLodMinRadius() const;
+
+void    setTileLodScale(double scale);
+double  getTileLodScale() const;
+
+void    setTileLodPitchThreshold(double threshold);  // radians
+double  getTileLodPitchThreshold() const;
+
+void    setTileLodZoomShift(double shift);
+double  getTileLodZoomShift() const;
+
+void    setTileLodMode(TileLodMode mode);
+TileLodMode getTileLodMode() const;
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `TileLodMinRadius` | Radius around the view point (in tile units) where full-resolution tiles are always used. |
+| `TileLodScale` | Scale factor for the camera distance used in LOD calculations. Values greater than 1 extend the full-resolution zone. |
+| `TileLodPitchThreshold` | Pitch angle in radians above which LOD is applied. `0` always applies LOD; `π` never does. |
+| `TileLodZoomShift` | Shifts the zoom level used for LOD. Negative values reduce tile count and quality; `-1` reduces tile count roughly 4×. |
+| `TileLodMode` | `default` (highest LOD at screen center) or `distance` (highest LOD closest to camera). |
+
+### Tile prefetching
+
+```cpp
+void    setPrefetchZoomDelta(uint8_t delta);
+uint8_t getPrefetchZoomDelta() const;
+```
+
+When a map loads, tiles at `zoom - delta` are requested first to display a coarser map quickly. Default is `4`. Set to `0` to disable.
+
+---
+
+## Debug
+
+```cpp
+void           setDebug(MapDebugOptions options);
+MapDebugOptions getDebug() const;
+void           dumpDebugLogs() const;
+
+bool isFullyLoaded() const;
+
+bool isRenderingStatsViewEnabled() const;
+void enableRenderingStatsView(bool value);
+```
+
+`MapDebugOptions` is a bitmask. Combine flags to overlay tile boundaries, collision boxes, overdraw visualization, and more.
+
+---
+
+## Map options
+
+```cpp
+void       setNorthOrientation(NorthOrientation);
+void       setConstrainMode(ConstrainMode);
+void       setViewportMode(ViewportMode);
+void       setSize(Size);
+MapOptions getMapOptions() const;
+
+void       setProjectionMode(const ProjectionMode&);
+ProjectionMode getProjectionMode() const;
+
+void       setFrustumOffset(const EdgeInsets&);
+EdgeInsets getFrustumOffset();
+```

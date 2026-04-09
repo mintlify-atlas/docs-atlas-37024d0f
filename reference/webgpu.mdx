@@ -1,0 +1,103 @@
+---
+title: "WebGPU"
+description: "WebGPU rendering backend (experimental)"
+keywords: ["WebGPU", "Dawn", "wgpu", "rendering", "backend", "experimental", "Android", "iOS"]
+---
+
+WebGPU is a modern graphics API designed for portability across platforms and rendering backends. MapLibre Native supports two WebGPU implementations: [Dawn](https://dawn.googlesource.com/dawn) (Google's C++ implementation) and [wgpu](https://wgpu.rs/) (a Rust-based implementation).
+
+<Warning>
+WebGPU support is experimental and in active development. It is not recommended for production use.
+</Warning>
+
+## Platform support
+
+| Platform | Support |
+|----------|---------|
+| Android  | Experimental |
+| iOS      | Experimental |
+| Linux    | Experimental |
+| Windows  | Unknown |
+| macOS    | Experimental |
+| Node.js  | No |
+| Qt       | No |
+
+Both WebGPU implementations use the platform's native GPU API internally: Vulkan on Android and Linux, Metal on iOS and macOS.
+
+## Enabling WebGPU
+
+### Android
+
+Select a WebGPU Gradle product flavor:
+
+```bash
+cd platform/android
+
+# WebGPU (Dawn)
+./gradlew :MapLibreAndroidTestApp:installWebgpuDawnDebug
+
+# WebGPU (wgpu-native) — arm64-v8a only
+./gradlew :MapLibreAndroidTestApp:installWebgpuWgpuDebug
+```
+
+<Note>
+The `webgpuWgpu` flavor only supports the `arm64-v8a` ABI.
+</Note>
+
+To select in Android Studio, open the **Build Variants** panel (**View > Tool Windows > Build Variants**) and choose `webgpuDawnDebug` or `webgpuWgpuDebug`.
+
+The flavors set the following CMake arguments:
+
+| Flavor | CMake arguments |
+|--------|----------------|
+| `webgpuDawn` | `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_DAWN=ON` |
+| `webgpuWgpu` | `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_WGPU=ON` |
+
+### iOS (CMake)
+
+```bash
+# WebGPU (Dawn)
+cmake --preset ios-webgpu-dawn -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+xed "build-ios-webgpu-dawn/MapLibre Native.xcodeproj"
+
+# WebGPU (wgpu-native)
+cmake --preset ios-webgpu-wgpu -DDEVELOPMENT_TEAM_ID=YOUR_TEAM_ID
+xed "build-ios-webgpu-wgpu/MapLibre Native.xcodeproj"
+```
+
+Or build from the command line:
+
+```bash
+cmake --build build-ios-webgpu-wgpu -- -sdk iphonesimulator -arch arm64
+```
+
+The presets set the following CMake variables:
+
+| Preset | CMake variables |
+|--------|----------------|
+| `ios-webgpu-dawn` | `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_DAWN=ON` |
+| `ios-webgpu-wgpu` | `-DMLN_WITH_WEBGPU=ON -DMLN_WEBGPU_IMPL_WGPU=ON` |
+
+### Linux
+
+```bash
+# WebGPU (Dawn)
+cmake --preset linux-webgpu-dawn
+cmake --build build-linux-webgpu-dawn
+
+# WebGPU (wgpu-native)
+cmake --preset linux-webgpu-wgpu
+cmake --build build-linux-webgpu-wgpu
+```
+
+### macOS
+
+```bash
+# WebGPU (Dawn)
+cmake --preset macos-webgpu-dawn
+cmake --build build-macos-webgpu-dawn
+
+# WebGPU (wgpu-native)
+cmake --preset macos-webgpu-wgpu
+cmake --build build-macos-webgpu-wgpu
+```

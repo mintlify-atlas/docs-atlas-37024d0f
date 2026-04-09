@@ -1,0 +1,133 @@
+---
+title: "Android quickstart"
+description: "Add MapLibre Native to your Android app with Gradle, display a MapView in your layout, and initialize the map in an activity."
+---
+
+MapLibre Native for Android is a library for embedding interactive, GPU-accelerated vector maps in Android applications. This guide walks you through adding it to a new or existing Android project.
+
+<Steps>
+  <Step title="Add the dependency">
+    Add the latest version of MapLibre Native Android to your app's `build.gradle` dependencies block.
+
+    ```gradle build.gradle
+    dependencies {
+        implementation 'org.maplibre.gl:android-sdk:13.0.2'
+    }
+    ```
+
+    <Note>
+      The default `android-sdk` artifact uses **Vulkan** as its rendering backend. If you need OpenGL ES instead, use `org.maplibre.gl:android-sdk-opengl` in place of `android-sdk`.
+    </Note>
+
+    Check [Maven Central](https://central.sonatype.com/artifact/org.maplibre.gl/android-sdk/versions) for the latest published version.
+  </Step>
+
+  <Step title="Add MapView to your layout">
+    Add a `MapView` element to your activity's XML layout file.
+
+    ```xml res/layout/activity_main.xml
+    <org.maplibre.android.maps.MapView
+        android:id="@+id/mapView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        />
+    ```
+  </Step>
+
+  <Step title="Initialize the map in your activity">
+    Initialize `MapLibre` and the `MapView` in your activity's `onCreate` method. Use `getMapAsync` to receive the map object once it is ready, then set a style and an initial camera position.
+
+    ```kotlin MainActivity.kt
+    import androidx.appcompat.app.AppCompatActivity
+    import android.os.Bundle
+    import android.view.LayoutInflater
+    import org.maplibre.android.MapLibre
+    import org.maplibre.android.camera.CameraPosition
+    import org.maplibre.android.geometry.LatLng
+    import org.maplibre.android.maps.MapView
+
+    class MainActivity : AppCompatActivity() {
+
+        // Declare a variable for MapView
+        private lateinit var mapView: MapView
+
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+
+            // Init MapLibre
+            MapLibre.getInstance(this)
+
+            // Init layout view
+            val inflater = LayoutInflater.from(this)
+            val rootView = inflater.inflate(R.layout.activity_main, null)
+            setContentView(rootView)
+
+            // Init the MapView
+            mapView = rootView.findViewById(R.id.mapView)
+            mapView.getMapAsync { map ->
+                map.setStyle("https://demotiles.maplibre.org/style.json")
+                map.cameraPosition = CameraPosition.Builder().target(LatLng(0.0, 0.0)).zoom(1.0).build()
+            }
+        }
+    ```
+  </Step>
+
+  <Step title="Forward lifecycle events">
+    `MapView` must receive Android lifecycle callbacks to correctly manage GPU resources, location updates, and rendering. Override each lifecycle method in your activity and forward it to `mapView`.
+
+    ```kotlin MainActivity.kt
+        override fun onStart() {
+            super.onStart()
+            mapView.onStart()
+        }
+
+        override fun onResume() {
+            super.onResume()
+            mapView.onResume()
+        }
+
+        override fun onPause() {
+            super.onPause()
+            mapView.onPause()
+        }
+
+        override fun onStop() {
+            super.onStop()
+            mapView.onStop()
+        }
+
+        override fun onLowMemory() {
+            super.onLowMemory()
+            mapView.onLowMemory()
+        }
+
+        override fun onDestroy() {
+            super.onDestroy()
+            mapView.onDestroy()
+        }
+
+        override fun onSaveInstanceState(outState: Bundle) {
+            super.onSaveInstanceState(outState)
+            mapView.onSaveInstanceState(outState)
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Jetpack Compose
+
+MapLibre Native Android is a View-based library. To use it in a Compose project, wrap `MapView` in an `AndroidView` composable, or use one of the community libraries that handle this for you:
+
+- [Ramani Maps](https://github.com/ramani-maps/ramani-maps) — a Compose wrapper for MapLibre Native Android
+- [MapLibre Compose Playground](https://github.com/Rallista/maplibre-compose-playground) — experimental Compose integration
+
+<Tip>
+  [MapLibre Compose](https://github.com/maplibre/maplibre-compose) wraps MapLibre Native for Compose Multiplatform, supporting both Android and iOS from a single codebase.
+</Tip>
+
+## Next steps
+
+- [Android API documentation](https://maplibre.org/maplibre-native/android/api/)
+- [Android examples](https://maplibre.org/maplibre-native/android/examples/getting-started/)
+- [Android developer guide](https://maplibre.org/maplibre-native/docs/book/platforms/android/index.html)

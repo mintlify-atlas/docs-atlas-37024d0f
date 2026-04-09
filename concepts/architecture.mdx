@@ -1,0 +1,126 @@
+---
+title: "Architecture"
+description: "How MapLibre Native is structured internally"
+---
+
+MapLibre Native is a C++ library with a monolithic repository housing both the cross-platform core and platform-specific SDKs. Understanding the repository layout and how the major components interact helps you navigate the codebase and extend the library.
+
+## Repository layout
+
+The repository is organized into three main areas:
+
+| Directory | Contents |
+|---|---|
+| `include/mbgl/` | Public C++ headers forming the stable API surface |
+| `src/mbgl/` | Implementation files and private headers |
+| `platform/` | Platform-specific SDKs and build scripts |
+
+Both `include/` and `src/` nest files under `mbgl/` with subdirectories per functional area. Headers from either location are included as `#include <mbgl/___/___.hpp>`.
+
+The `platform/` directory contains one subdirectory per target:
+
+- `platform/android` — Android SDK (Kotlin/Java bindings, Gradle build)
+- `platform/ios` and `platform/macos` — Apple platform SDKs
+- `platform/darwin` and `platform/default` — code shared across multiple platforms
+- `platform/glfw` — desktop demo application used for development and testing
+
+<Note>
+The monorepo structure ensures that changes to the C++ core and platform SDKs stay in sync. A core API change and the corresponding Android/iOS binding change land in the same pull request.
+</Note>
+
+## Major components
+
+<CardGroup cols={2}>
+  <Card title="Map" icon="map">
+    The top-level `mbgl::Map` class. It owns the active `Style`, drives the render loop, and exposes the public API for camera, annotations, and tile controls.
+  </Card>
+  <Card title="Style" icon="palette">
+    Implements the MapLibre Style Specification. Holds the ordered list of layers and sources, manages sprite and glyph loading, and exposes the runtime styling API.
+  </Card>
+  <Card title="Layers and sources" icon="layer-group">
+    Strongly-typed C++ classes generated from the style spec. Each layer type (Circle, Fill, Line, Symbol, …) has a public `Layer` class and a private `Layer::Impl` class.
+  </Card>
+  <Card title="Renderer" icon="display">
+    Translates the current style and tile data into GPU draw calls. Operates on immutable snapshots of the style state produced by style diffing.
+  </Card>
+  <Card title="TileWorker" icon="gear">
+    A pool of background threads that parse vector tiles and compute geometry and label layout for each tile one layer at a time.
+  </Card>
+  <Card title="FileSource" icon="database">
+    Handles all I/O: HTTP requests for styles, tiles, sprites, and glyphs, plus reads and writes to the SQLite cache used for offline maps.
+  </Card>
+</CardGroup>
+
+## Threading model
+
+MapLibre Native runs work across three categories of threads to keep the UI responsive:
+
+**Main thread** — the thread on which `mbgl::Map` is constructed. It owns the active `Style` and all style objects, handles direct `Map` API calls, and drives the render loop. No blocking I/O or heavy computation runs here.
+
+**Worker threads** — four threads are spawned per `Style` object. They perform CPU-intensive work associated with tile layout: parsing vector tile protobufs, computing text and symbol placement, and building the GPU vertex buffers for each tile. Work is dispatched on a tile-by-tile basis.
+
+**FileSource thread** — a dedicated thread for all network I/O and SQLite operations. Requests originate on the main thread, are dispatched internally to this thread, and results are returned to the main thread via an asynchronous callback.
+
+```
+Main thread          Worker threads (×4 per Style)   FileSource thread
+──────────           ──────────────────────────────   ─────────────────
+mbgl::Map            tile parsing                     HTTP requests
+mbgl::Style          geometry layout                  SQLite reads/writes
+render loop          text placement                   cache management
+camera/annotations   GPU buffer generation
+```
+
+<Tip>
+Cross-thread communication uses zero shared mutable state. Values are either copied or transferred by ownership (`std::unique_ptr`). The `std::unique_ptr<AsyncTask>` returned from cross-thread invocations represents the pending work — destroying it cancels the callback.
+</Tip>
+
+## Immutability pattern
+
+The style API makes a strict distinction between public mutable objects and private immutable implementations:
+
+| Mutable (public) | Immutable (private) |
+|---|---|
+| `Layer` | `Layer::Impl` |
+| `Source` | `Source::Impl` |
+| `Image` | `Image::Impl` |
+| `Light` | `Light::Impl` |
+
+When you call a mutating method such as `CircleLayer::setCircleRadius`, the implementation:
+
+1. Copies the existing `Layer::Impl` into a new, temporarily mutable instance.
+2. Applies the change to the copy.
+3. Freezes the copy as an `Immutable<Layer::Impl>` and stores it as the new impl.
+
+No existing `Impl` is ever modified in place. Other threads holding a reference to the previous `Impl` continue using it safely until the next style diff.
+
+```cpp
+// Immutable<T> is a non-nullable shared reference to const T.
+// It has the semantics of std::shared_ptr<const T> but signals
+// thread-safe sharing intent explicitly.
+Immutable<Layer::Impl> impl = makeImmutable<CircleLayer::Impl>(...);
+```
+
+### Style diffing
+
+The `RenderStyle` compares immutable snapshots frame-to-frame to determine what changed. Because `Impl` objects are never mutated, pointer equality is sufficient to detect unchanged objects — no deep comparison needed. Collections of layers and sources are also made immutable, so the diff algorithm is skipped entirely in the common case where nothing changed.
+
+This approach also enables seamless transitions between completely different styles: swapping from a light style to a dark style is handled automatically by the diff, with no special-case code.
+
+## Actor framework
+
+Cross-thread message passing is implemented through two types:
+
+- **`MailBox`** — attached to a thread, receives messages addressed to that thread.
+- **`Actor<T>`** — a handle to an object running on a specific thread. Calling a method on an `Actor` enqueues an anonymous function (the call) as an immutable message in the target thread's `MailBox`.
+
+Messages are immutable by design. The TileWorker, for example, receives tile generation requests as actor messages and returns completed tile data the same way.
+
+```cpp
+// Conceptual usage — send a message to an Actor on another thread.
+// The lambda is enqueued in the actor's MailBox and executed on its thread.
+tileWorkerActor.invoke(&TileWorker::parse, tileData, callback);
+```
+
+<Note>
+The JavaScript counterpart, MapLibre GL JS, achieves the same pattern using Web Workers. The Actor framework in MapLibre Native is the native equivalent.
+</Note>

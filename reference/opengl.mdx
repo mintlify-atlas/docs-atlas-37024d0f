@@ -1,0 +1,56 @@
+---
+title: "OpenGL ES"
+description: "OpenGL ES 3.0 rendering backend"
+keywords: ["OpenGL", "OpenGL ES", "rendering", "backend", "Android", "Linux", "Windows"]
+---
+
+OpenGL ES was the original sole renderer in MapLibre Native. In 2023, the renderer was [modularized](https://github.com/maplibre/maplibre-native/blob/main/design-proposals/2022-10-27-rendering-modularization.md) to allow alternate backends — but OpenGL ES remains the default on Android and Linux, and still has the widest device compatibility.
+
+## Platform support
+
+| Platform | Support |
+|----------|---------|
+| Android  | Yes (default) |
+| iOS      | No |
+| Linux    | Yes (default) |
+| Windows  | Yes |
+| macOS    | No |
+| Node.js  | Yes |
+| Qt       | Yes |
+
+## Enabling OpenGL ES
+
+### Android
+
+The OpenGL ES backend is the default Gradle product flavor. To build or install it explicitly:
+
+```bash
+cd platform/android
+
+# Install the test app with OpenGL ES
+./gradlew :MapLibreAndroidTestApp:installOpenglDebug
+
+# Assemble the library in release mode
+./gradlew :MapLibreAndroid:assembleOpenglRelease
+```
+
+To select it in Android Studio, open the **Build Variants** panel (**View > Tool Windows > Build Variants**) and choose `openglDebug` or `openglRelease` for each module.
+
+Internally, the flavor sets the CMake argument `-DMLN_WITH_OPENGL=ON`.
+
+### Linux
+
+Use the `linux-opengl` CMake preset:
+
+```bash
+cmake --preset linux-opengl
+cmake --build build-linux-opengl
+```
+
+### Windows
+
+OpenGL ES is the only currently available backend on Windows. Configure with CMake using the standard Windows preset.
+
+### Node.js
+
+Node.js uses OpenGL ES by default. No extra configuration is required.

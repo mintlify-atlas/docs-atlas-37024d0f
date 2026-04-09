@@ -1,0 +1,169 @@
+---
+title: "Offline maps"
+description: "Caching tiles and resources for offline use"
+---
+
+MapLibre Native includes a built-in offline storage system that lets you download map resources ahead of time and use the map without a network connection. Storage is managed by `FileSource` and backed by a SQLite database on disk.
+
+## How offline storage works
+
+When a `Map` loads tiles and resources, `FileSource` automatically writes responses to a SQLite cache. The cache is controlled by the `ResourceOptions` passed when constructing the `Map`:
+
+```cpp
+#include <mbgl/storage/resource_options.hpp>
+
+auto resourceOptions = mbgl::ResourceOptions()
+    .withCachePath("/path/to/cache.db")
+    .withMaximumCacheSize(50 * 1024 * 1024); // 50 MB
+
+mbgl::Map map(frontend, observer, mapOptions, resourceOptions);
+```
+
+`withCachePath` sets the path to the SQLite file. `withMaximumCacheSize` caps the total size of cached data in bytes. When the cache exceeds the limit, older entries are evicted.
+
+<Note>
+The `withAssetPath` option sets the root directory for resolving `asset://` URLs in a style. This is used on Android and iOS to bundle a default style and tiles inside the app package.
+</Note>
+
+## Resource types
+
+Every resource fetched by `FileSource` has a `Kind` that determines how it is stored and prioritized. The kinds are defined in `include/mbgl/storage/resource.hpp`:
+
+| Kind | Value | Description |
+|---|---|---|
+| `Unknown` | `0` | Unclassified resource |
+| `Style` | `1` | Style JSON document |
+| `Source` | `2` | Tile source manifest (TileJSON) |
+| `Tile` | `3` | Vector or raster tile data |
+| `Glyphs` | `4` | SDF glyph atlas (protobuf) |
+| `SpriteImage` | `5` | Sprite sheet PNG |
+| `SpriteJSON` | `6` | Sprite sheet metadata JSON |
+| `Image` | `7` | Standalone image referenced by a style |
+
+Resources also carry a `LoadingMethod` that controls where they are fetched from:
+
+```cpp
+enum class LoadingMethod : uint8_t {
+    None        = 0b00,
+    Cache       = 0b01, // SQLite cache only
+    Network     = 0b10, // Network only
+    All         = 0b11, // Cache first, then network (default)
+};
+```
+
+Set `LoadingMethod::CacheOnly` on a resource to serve it exclusively from the cache — useful when you know the device is offline.
+
+## Offline regions
+
+The offline API lets you define a geographic region and download all resources needed to render it within a zoom range. Two region types are available:
+
+**Tile pyramid region** — defined by a bounding box and zoom range:
+
+```cpp
+#include <mbgl/storage/offline.hpp>
+
+mbgl::OfflineTilePyramidRegionDefinition definition{
+    "https://example.com/style.json",   // style URL
+    mbgl::LatLngBounds::hull(           // geographic bounds
+        {48.8, 2.3},                    // south-west
+        {48.9, 2.4}                     // north-east
+    ),
+    10,   // minZoom
+    14,   // maxZoom
+    2.0f, // pixelRatio
+    false // includeIdeographs (CJK characters)
+};
+```
+
+**Geometry region** — defined by an arbitrary GeoJSON geometry and zoom range:
+
+```cpp
+mbgl::OfflineGeometryRegionDefinition definition{
+    "https://example.com/style.json",
+    geometry,  // mbgl::Geometry<double>
+    10,
+    14,
+    2.0f,
+    false
+};
+```
+
+Download progress and completion are reported through `OfflineRegionObserver`:
+
+```cpp
+class MyObserver : public mbgl::OfflineRegionObserver {
+public:
+    void statusChanged(mbgl::OfflineRegionStatus status) override {
+        if (status.complete()) {
+            // All resources downloaded
+        }
+    }
+    void responseError(mbgl::Response::Error error) override {
+        // Handle download error
+    }
+};
+```
+
+`OfflineRegionStatus` tracks the number of completed resources, their cumulative size in bytes, and whether the required resource count is precise (it becomes precise once the style and source manifests have been downloaded).
+
+## Prefetch zoom delta
+
+The `setPrefetchZoomDelta` method on `mbgl::Map` improves perceived load speed during both online and offline use:
+
+```cpp
+map.setPrefetchZoomDelta(4); // default
+```
+
+When the map loads, it first requests tiles at `currentZoom - delta`, displaying a lower-resolution version of the map quickly. It then loads the full-resolution tiles. The delta is clamped at the tile source's minimum zoom.
+
+Set the delta to `0` to disable prefetching and load only the exact tiles needed for the current zoom level.
+
+<Tip>
+For offline regions, consider downloading tiles at `minZoom - 4` to `maxZoom` so that the prefetch mechanism can find lower-zoom tiles in the cache during initial load.
+</Tip>
+
+## Custom file source
+
+You can replace the default `FileSource` with a custom implementation to intercept all resource requests. This is useful for:
+
+- Serving tiles from an embedded asset bundle
+- Implementing a custom caching strategy
+- Routing requests through an authenticated proxy
+
+A custom file source implements the `mbgl::FileSource` interface:
+
+```cpp
+#include <mbgl/storage/file_source.hpp>
+
+class MyFileSource : public mbgl::FileSource {
+public:
+    std::unique_ptr<mbgl::AsyncRequest> request(
+        const mbgl::Resource& resource,
+        mbgl::FileSource::Callback callback) override
+    {
+        // Inspect resource.kind and resource.url to decide how to serve it.
+        // Call callback with an mbgl::Response when ready.
+        // Return an AsyncRequest whose destructor cancels the request.
+    }
+
+    bool canRequest(const mbgl::Resource& resource) const override {
+        return true; // handle all requests
+    }
+};
+```
+
+Register the custom source through `FileSourceManager` before constructing the `Map`. Returning a response from the cache (setting `response.data` and leaving `response.error` empty) prevents the network request from being made.
+
+<Note>
+`FileSource::Callback` may be invoked from any thread. SDK bindings are responsible for marshalling the callback back to the main thread before accessing map state.
+</Note>
+
+## Storage policy
+
+Individual resources can be marked `Volatile` to prevent them from being persisted to the SQLite database:
+
+```cpp
+resource.storagePolicy = mbgl::Resource::StoragePolicy::Volatile;
+```
+
+Volatile resources are fetched normally but never written to disk. Use this for resources that change frequently or that you do not want to persist between sessions.

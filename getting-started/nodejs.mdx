@@ -1,0 +1,191 @@
+---
+title: "Node.js quickstart"
+description: "Render MapLibre vector map tiles server-side in Node.js using the @maplibre/maplibre-gl-native npm package."
+---
+
+`@maplibre/maplibre-gl-native` is the Node.js binding for MapLibre Native. It runs headless map rendering on the server, producing raw pixel buffers that you can encode to PNG, JPEG, or any other format.
+
+## Prerequisites
+
+Pre-built binaries are available for the following environments:
+
+| Operating system | Architectures |
+|---|---|
+| Ubuntu 24.04 | amd64, arm64 |
+| macOS | amd64, arm64 |
+| Windows | amd64, arm64 |
+
+Supported Node.js versions: **20, 22, 24**
+
+## Install
+
+```bash
+npm install @maplibre/maplibre-gl-native
+```
+
+## Render a map
+
+<Steps>
+  <Step title="Create a Map instance and load a style">
+    Import the module, create a `Map`, and load a style JSON object. The `map.load()` call accepts a parsed style object (not a URL).
+
+    ```javascript render.js
+    var mbgl = require('@maplibre/maplibre-gl-native');
+    var sharp = require('sharp');
+
+    var map = new mbgl.Map();
+
+    map.load(require('./style.json'));
+    ```
+  </Step>
+
+  <Step title="Render to a pixel buffer">
+    Call `map.render()` with optional render options and a callback. The callback receives a raw RGBA pixel buffer. Use a library such as [sharp](https://sharp.pixelplumbing.com/) to encode it as a PNG file.
+
+    ```javascript render.js
+    map.render(function(err, buffer) {
+        if (err) throw err;
+
+        map.release();
+
+        var image = sharp(buffer, {
+            raw: {
+                width: 512,
+                height: 512,
+                channels: 4
+            }
+        });
+
+        // Convert raw image buffer to PNG
+        image.toFile('image.png', function(err) {
+            if (err) throw err;
+        });
+    });
+    ```
+
+    <Note>
+      Call `map.release()` as soon as the render callback returns. This permanently disposes internal map resources and frees memory and file sockets without waiting for the garbage collector. After calling `release()`, the map instance cannot be used for further renders.
+    </Note>
+  </Step>
+</Steps>
+
+## Render options
+
+Pass an options object as the first argument to `map.render()` to control the camera and output dimensions. All fields are optional.
+
+```javascript
+map.render({
+    zoom: 0,           // zoom level, default 0
+    width: 512,        // output width in pixels, default 512
+    height: 512,       // output height in pixels, default 512
+    center: [0, 0],    // [longitude, latitude], default [0, 0]
+    bearing: 0,        // degrees counter-clockwise from north, default 0
+    pitch: 0,          // degrees arcing towards the horizon, default 0
+}, function(err, buffer) { ... });
+```
+
+## Custom request handler
+
+By default, the map uses built-in HTTP request handling. Pass a `request` function to the `Map` constructor to intercept every resource request (tiles, fonts, sprites, etc.) and serve them from any source.
+
+<CodeGroup>
+
+```javascript local-files.js
+var fs = require('fs');
+var path = require('path');
+var mbgl = require('@maplibre/maplibre-gl-native');
+
+var map = new mbgl.Map({
+    request: function(req, callback) {
+        fs.readFile(path.join(__dirname, 'test', req.url), function(err, data) {
+            callback(err, { data: data });
+        });
+    },
+    ratio: 1
+});
+
+map.load(require('./style.json'));
+
+map.render({ zoom: 0 }, function(err, buffer) {
+    if (err) throw err;
+    map.release();
+    // encode buffer …
+});
+```
+
+```javascript remote-http.js
+var mbgl = require('@maplibre/maplibre-gl-native');
+var request = require('request');
+
+var map = new mbgl.Map({
+    request: function(req, callback) {
+        request({
+            url: req.url,
+            encoding: null,
+            gzip: true
+        }, function(err, res, body) {
+            if (err) {
+                callback(err);
+            } else if (res.statusCode == 200) {
+                var response = {};
+
+                if (res.headers.modified) { response.modified = new Date(res.headers.modified); }
+                if (res.headers.expires) { response.expires = new Date(res.headers.expires); }
+                if (res.headers.etag)    { response.etag = res.headers.etag; }
+
+                response.data = body;
+
+                callback(null, response);
+            } else if (res.statusCode == 204) {
+                callback();
+            } else {
+                callback(new Error(JSON.parse(body).message));
+            }
+        });
+    }
+});
+```
+
+</CodeGroup>
+
+The `req` parameter passed to your handler has two fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `url` | string | The URL of the requested resource |
+| `kind` | number | Resource type hint (0 = Unknown, 1 = Style, 2 = Source, 3 = Tile, 4 = Glyphs, 5 = SpriteImage, 6 = SpriteJSON) |
+
+Your callback must be called with either an error or a response object:
+
+```javascript
+callback(null, {
+    data: buffer,       // required — Uint8Array or Buffer, uncompressed
+    modified: new Date(), // optional
+    expires: new Date(),  // optional
+    etag: "string"        // optional
+});
+```
+
+<Note>
+  The `request` implementation must pass **uncompressed** data to the callback. If your source applies gzip transport encoding, decompress the data before calling `callback`.
+</Note>
+
+## Listening for log events
+
+The module emits log messages through the Node.js `EventEmitter` interface.
+
+```javascript
+var mbgl = require('@maplibre/maplibre-gl-native');
+
+mbgl.on('message', function(msg) {
+    console.log('[' + msg.severity + '] ' + msg.class + ': ' + msg.text);
+});
+```
+
+Log messages include `class`, `severity`, `code` (HTTP status), and `text` fields.
+
+## Next steps
+
+- [npm package](https://www.npmjs.com/package/@maplibre/maplibre-gl-native)
+- [Node.js source code](https://github.com/maplibre/maplibre-native/tree/main/platform/node)
+- [Node.js developer guide](https://github.com/maplibre/maplibre-native/blob/main/platform/node/DEVELOPING.md)

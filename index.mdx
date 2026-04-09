@@ -1,97 +1,63 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "MapLibre Native"
+description: "A free and open-source library for GPU-accelerated vector tile map rendering on Android, iOS, Node.js, and other native platforms."
 ---
 
-## Setting up
+MapLibre Native is a cross-platform C++ library that powers interactive vector maps in native applications. It renders maps using the GPU through multiple graphics backends — OpenGL ES, Metal, Vulkan, and WebGPU — giving you fast, smooth map experiences on Android, iOS, Linux, Windows, macOS, and Node.js.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Android quickstart" icon="android" href="/getting-started/android">
+    Add MapLibre Native to your Android app with Gradle and display your first map in minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="iOS quickstart" icon="apple" href="/getting-started/ios">
+    Integrate MapLibre Native into your iOS app via Swift Package Manager or CocoaPods.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Node.js quickstart" icon="node-js" href="/getting-started/nodejs">
+    Render map tiles server-side using the `@maplibre/maplibre-gl-native` npm package.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Platform overview" icon="layer-group" href="/platforms/overview">
+    See all supported platforms, rendering backends, and build tooling at a glance.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Why MapLibre Native
 
-Everything you need to create world-class documentation.
+MapLibre Native originated as a community-led fork of Mapbox GL Native after Mapbox switched to a non-open-source license in December 2020. It is licensed under the BSD 2-Clause License and developed entirely in the open.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={3}>
+  <Card title="Multi-backend rendering" icon="microchip">
+    Supports OpenGL ES, Metal, Vulkan, and WebGPU — choose the right GPU API for each target platform.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Runtime styling" icon="palette">
+    Modify map styles at runtime: add and remove layers, change properties, and swap styles seamlessly.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Offline maps" icon="wifi-slash">
+    Cache tiles and resources in SQLite for fully offline map experiences.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Style spec compliant" icon="file-code">
+    Renders styles written to the MapLibre Style Specification, including the full expressions language.
   </Card>
-</Columns>
+  <Card title="Cross-platform C++ core" icon="c">
+    A single C++ codebase shared across all platforms with thin, idiomatic platform SDKs on top.
+  </Card>
+  <Card title="Open source" icon="code-branch">
+    BSD-2-Clause licensed. Governed by the MapLibre Organization with corporate and community sponsors.
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## Explore the docs
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Core concepts" icon="book" href="/concepts/architecture">
+    Understand the architecture: Map, Style, Layers, Sources, Renderer, and the threading model.
+  </Card>
+  <Card title="C++ API reference" icon="brackets-curly" href="/reference/map">
+    Explore the public C++ API surface including `mbgl::Map`, `mbgl::style::Style`, layers, and sources.
+  </Card>
+  <Card title="Rendering backends" icon="display" href="/reference/opengl">
+    Learn about OpenGL ES, Metal, Vulkan, and WebGPU backend support across platforms.
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/contributing/overview">
+    Get set up to contribute to MapLibre Native — build from source, run tests, and submit proposals.
+  </Card>
+</CardGroup>

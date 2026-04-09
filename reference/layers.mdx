@@ -1,0 +1,371 @@
+---
+title: "Layer types"
+description: "All available map layer types in MapLibre Native and their style properties."
+keywords: ["layers", "mbgl", "C++", "circle", "fill", "line", "symbol", "raster", "heatmap", "background"]
+---
+
+Each layer type renders a distinct visual element. Layers are added to a `Style` and reference a `Source` (except `BackgroundLayer`). They are drawn in order from first (bottom) to last (top).
+
+All layer classes are in the `mbgl::style` namespace and inherit from `mbgl::style::Layer`.
+
+## Layer overview
+
+| Class | Style spec type | Requires source |
+|-------|-----------------|-----------------|
+| `BackgroundLayer` | `background` | No |
+| `CircleLayer` | `circle` | Yes |
+| `FillLayer` | `fill` | Yes |
+| `FillExtrusionLayer` | `fill-extrusion` | Yes |
+| `LineLayer` | `line` | Yes |
+| `SymbolLayer` | `symbol` | Yes |
+| `RasterLayer` | `raster` | Yes |
+| `HeatmapLayer` | `heatmap` | Yes |
+| `HillshadeLayer` | `hillshade` | Yes (RasterDEM) |
+| `LocationIndicatorLayer` | `location-indicator` | No |
+| `CustomDrawableLayer` | `custom-drawable` | No |
+| `CustomLayer` | `custom` | No |
+
+---
+
+## Common layer API
+
+All layer types share the following methods from `mbgl::style::Layer`:
+
+```cpp
+std::string     getID() const;
+std::string     getSourceID() const;
+std::string     getSourceLayer() const;
+void            setSourceLayer(const std::string&);
+
+const Filter&   getFilter() const;
+void            setFilter(const Filter&);
+
+VisibilityType  getVisibility() const;
+void            setVisibility(VisibilityType);
+
+float           getMinZoom() const;
+float           getMaxZoom() const;
+void            setMinZoom(float);
+void            setMaxZoom(float);
+```
+
+---
+
+## Layer types
+
+<AccordionGroup>
+
+<Accordion title="BackgroundLayer">
+
+**Class:** `mbgl::style::BackgroundLayer`  
+**Header:** `<mbgl/style/layers/background_layer.hpp>`
+
+Renders a solid color or pattern beneath all other layers. It does not reference a source.
+
+```cpp
+BackgroundLayer(const std::string& layerID);
+```
+
+Key paint properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `background-color` | `Color` | Fill color. Ignored when `background-pattern` is set. |
+| `background-opacity` | `float` | Opacity of the background layer (0–1). |
+| `background-pattern` | `expression::Image` | Sprite image to tile as the background. |
+
+</Accordion>
+
+<Accordion title="CircleLayer" defaultOpen>
+
+**Class:** `mbgl::style::CircleLayer`  
+**Header:** `<mbgl/style/layers/circle_layer.hpp>`
+
+Renders point geometries as filled circles. Useful for point datasets that do not require text labels.
+
+```cpp
+CircleLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+**Layout properties**
+
+<ParamField path="circle-sort-key" type="float">
+  Sort key for rendering order within the layer. Features with higher values are drawn on top.
+</ParamField>
+
+**Paint properties**
+
+<ParamField path="circle-radius" type="float">
+  Radius of the circle in pixels. Supports data-driven expressions. Default: `5`.
+</ParamField>
+
+<ParamField path="circle-color" type="Color">
+  Fill color of the circle. Default: `black`.
+</ParamField>
+
+<ParamField path="circle-opacity" type="float">
+  Opacity of the circle fill (0–1). Default: `1`.
+</ParamField>
+
+<ParamField path="circle-blur" type="float">
+  Amount to blur the circle. `1` blurs the circle such that only the center is opaque.
+</ParamField>
+
+<ParamField path="circle-stroke-width" type="float">
+  Width of the circle stroke in pixels. Default: `0`.
+</ParamField>
+
+<ParamField path="circle-stroke-color" type="Color">
+  Color of the circle stroke. Default: `black`.
+</ParamField>
+
+<ParamField path="circle-stroke-opacity" type="float">
+  Opacity of the circle stroke (0–1). Default: `1`.
+</ParamField>
+
+<ParamField path="circle-translate" type="array<float, 2>">
+  Offset `[x, y]` in pixels at which to draw the circle relative to its geometry. Default: `[0, 0]`.
+</ParamField>
+
+<ParamField path="circle-translate-anchor" type="TranslateAnchorType">
+  Frame of reference for `circle-translate`. `Map` or `Viewport`. Default: `Map`.
+</ParamField>
+
+<ParamField path="circle-pitch-scale" type="CirclePitchScaleType">
+  Whether the circle radius scales with the map (`Map`) or stays constant on screen (`Viewport`).
+</ParamField>
+
+<ParamField path="circle-pitch-alignment" type="AlignmentType">
+  Whether the circles are aligned with the map (`Map`) or the viewport (`Viewport`) when the map is pitched.
+</ParamField>
+
+All paint properties support transitions via `setCircle<Property>Transition(const TransitionOptions&)`.
+
+**Example**
+
+```cpp
+#include <mbgl/style/layers/circle_layer.hpp>
+
+auto layer = std::make_unique<mbgl::style::CircleLayer>("points", "my-source");
+layer->setCircleRadius({8.0f});
+layer->setCircleColor(mbgl::Color{1.0f, 0.3f, 0.1f, 1.0f});
+layer->setCircleStrokeWidth({2.0f});
+layer->setCircleStrokeColor(mbgl::Color{1.0f, 1.0f, 1.0f, 1.0f});
+map.getStyle().addLayer(std::move(layer));
+```
+
+</Accordion>
+
+<Accordion title="FillLayer">
+
+**Class:** `mbgl::style::FillLayer`  
+**Header:** `<mbgl/style/layers/fill_layer.hpp>`
+
+Renders filled polygon geometries. Suitable for regions, boundaries, land use areas, and any filled shape.
+
+```cpp
+FillLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+**Layout properties**
+
+<ParamField path="fill-sort-key" type="float">
+  Rendering order key for features within the layer. Higher values appear on top.
+</ParamField>
+
+**Paint properties**
+
+<ParamField path="fill-color" type="Color">
+  Fill color. Default: `black`. Ignored when `fill-pattern` is set.
+</ParamField>
+
+<ParamField path="fill-opacity" type="float">
+  Opacity of the fill layer (0–1). Default: `1`.
+</ParamField>
+
+<ParamField path="fill-outline-color" type="Color">
+  Color of the outline drawn around each polygon. Requires `fill-antialias` to be `true`.
+</ParamField>
+
+<ParamField path="fill-antialias" type="bool">
+  Whether the fill outlines are anti-aliased. Default: `true`.
+</ParamField>
+
+<ParamField path="fill-pattern" type="expression::Image">
+  Sprite image to tile inside the polygon. Overrides `fill-color`.
+</ParamField>
+
+<ParamField path="fill-translate" type="array<float, 2>">
+  Offset `[x, y]` in pixels at which to draw the fill relative to its geometry. Default: `[0, 0]`.
+</ParamField>
+
+<ParamField path="fill-translate-anchor" type="TranslateAnchorType">
+  Frame of reference for `fill-translate`. `Map` or `Viewport`. Default: `Map`.
+</ParamField>
+
+All paint properties support transitions via `setFill<Property>Transition(const TransitionOptions&)`.
+
+**Example**
+
+```cpp
+#include <mbgl/style/layers/fill_layer.hpp>
+
+auto layer = std::make_unique<mbgl::style::FillLayer>("regions", "boundaries-source");
+layer->setFillColor(mbgl::Color{0.0f, 0.5f, 0.8f, 1.0f});
+layer->setFillOpacity({0.6f});
+layer->setFillOutlineColor(mbgl::Color{0.0f, 0.3f, 0.6f, 1.0f});
+map.getStyle().addLayer(std::move(layer));
+```
+
+</Accordion>
+
+<Accordion title="FillExtrusionLayer">
+
+**Class:** `mbgl::style::FillExtrusionLayer`  
+**Header:** `<mbgl/style/layers/fill_extrusion_layer.hpp>`
+
+Renders polygon geometries as 3D extruded shapes. Requires a pitched camera to see the extrusion.
+
+```cpp
+FillExtrusionLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key paint properties: `fill-extrusion-color`, `fill-extrusion-height`, `fill-extrusion-base`, `fill-extrusion-opacity`, `fill-extrusion-pattern`, `fill-extrusion-translate`.
+
+`fill-extrusion-height` and `fill-extrusion-base` support data-driven expressions, making it straightforward to extrude buildings by height from a property in your source data.
+
+</Accordion>
+
+<Accordion title="LineLayer">
+
+**Class:** `mbgl::style::LineLayer`  
+**Header:** `<mbgl/style/layers/line_layer.hpp>`
+
+Renders line string geometries. Suitable for roads, routes, borders, and any linear feature.
+
+```cpp
+LineLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key layout properties: `line-cap` (`butt`, `round`, `square`), `line-join` (`bevel`, `round`, `miter`), `line-sort-key`.
+
+Key paint properties: `line-color`, `line-width`, `line-opacity`, `line-blur`, `line-dasharray`, `line-pattern`, `line-gap-width`, `line-offset`, `line-translate`, `line-gradient`.
+
+</Accordion>
+
+<Accordion title="SymbolLayer">
+
+**Class:** `mbgl::style::SymbolLayer`  
+**Header:** `<mbgl/style/layers/symbol_layer.hpp>`
+
+Renders point or line geometries with icons and/or text labels. Uses the glyph and sprite system for text shaping and collision detection.
+
+```cpp
+SymbolLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key layout properties: `icon-image`, `icon-size`, `icon-anchor`, `text-field`, `text-font`, `text-size`, `text-anchor`, `text-max-width`, `symbol-placement` (`point`, `line`, `line-center`).
+
+Key paint properties: `icon-color`, `icon-opacity`, `icon-halo-color`, `icon-halo-width`, `text-color`, `text-opacity`, `text-halo-color`, `text-halo-width`.
+
+<Tip>
+For text rendering, register glyphs via the `ResourceOptions` glyph URL before loading a style that uses text labels.
+</Tip>
+
+</Accordion>
+
+<Accordion title="RasterLayer">
+
+**Class:** `mbgl::style::RasterLayer`  
+**Header:** `<mbgl/style/layers/raster_layer.hpp>`
+
+Renders raster tile imagery from a `RasterSource` or `ImageSource`.
+
+```cpp
+RasterLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key paint properties: `raster-opacity`, `raster-hue-rotate`, `raster-brightness-min`, `raster-brightness-max`, `raster-saturation`, `raster-contrast`, `raster-fade-duration`, `raster-resampling`.
+
+</Accordion>
+
+<Accordion title="HeatmapLayer">
+
+**Class:** `mbgl::style::HeatmapLayer`  
+**Header:** `<mbgl/style/layers/heatmap_layer.hpp>`
+
+Renders point data as a smooth density heatmap using kernel density estimation.
+
+```cpp
+HeatmapLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key paint properties: `heatmap-radius`, `heatmap-weight`, `heatmap-intensity`, `heatmap-color` (color ramp expression), `heatmap-opacity`.
+
+</Accordion>
+
+<Accordion title="HillshadeLayer">
+
+**Class:** `mbgl::style::HillshadeLayer`  
+**Header:** `<mbgl/style/layers/hillshade_layer.hpp>`
+
+Renders terrain shading from a `RasterDEMSource`. The shading simulates directional illumination.
+
+```cpp
+HillshadeLayer(const std::string& layerID, const std::string& sourceID);
+```
+
+Key paint properties: `hillshade-illumination-direction`, `hillshade-illumination-anchor`, `hillshade-exaggeration`, `hillshade-shadow-color`, `hillshade-highlight-color`, `hillshade-accent-color`.
+
+</Accordion>
+
+<Accordion title="LocationIndicatorLayer">
+
+**Class:** `mbgl::style::LocationIndicatorLayer`  
+**Header:** `<mbgl/style/layers/location_indicator_layer.hpp>`
+
+Renders a pulsing location indicator. Does not require a source; position is set via paint properties.
+
+```cpp
+LocationIndicatorLayer(const std::string& layerID);
+```
+
+Key paint properties: `location` (lat/lng/altitude), `bearing`, `accuracy-radius`, `top-image`, `bearing-image`, `shadow-image`, and related color and size properties.
+
+</Accordion>
+
+<Accordion title="CustomDrawableLayer">
+
+**Class:** `mbgl::style::CustomDrawableLayer`  
+**Header:** `<mbgl/style/layers/custom_drawable_layer.hpp>`
+
+Renders arbitrary drawables defined by a platform-native callback. Useful for integrating custom GPU draw calls within the layer stack.
+
+```cpp
+CustomDrawableLayer(const std::string& layerID,
+                    std::unique_ptr<CustomDrawableLayerHost> host);
+```
+
+Implement `CustomDrawableLayerHost` to receive `initialize()`, `update()`, and `deinitialize()` callbacks on the render thread.
+
+</Accordion>
+
+<Accordion title="CustomLayer">
+
+**Class:** `mbgl::style::CustomLayer`  
+**Header:** `<mbgl/style/layers/custom_layer.hpp>`
+
+Lower-level hook for injecting raw OpenGL or Metal draw calls into the render pass. Implement `CustomLayerHost` to receive render callbacks.
+
+```cpp
+CustomLayer(const std::string& layerID,
+            std::unique_ptr<CustomLayerHost> host);
+```
+
+<Warning>
+`CustomLayer` requires direct knowledge of the active rendering backend. Prefer `CustomDrawableLayer` for new integrations.
+</Warning>
+
+</Accordion>
+
+</AccordionGroup>
